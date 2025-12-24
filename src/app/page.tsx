@@ -29,7 +29,7 @@ const products = [
     name: "Imperial Velvet Blazer",
     category: "Evening Gala",
     price: "$1,950",
-    image: "https://images.unsplash.com/photo-1592878904946-b3cd8ae243d0?auto=format&fit=crop&q=80&w=800",
+    image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&q=80&w=800",
     customizable: true,
   },
   {

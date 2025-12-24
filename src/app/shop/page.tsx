@@ -183,7 +183,7 @@ export default function Shop() {
       </section>
 
       {/* Toolbar */}
-      <section className="sticky top-[64px] z-40 bg-white border-b border-zinc-100 py-4">
+      <section className="sticky top-64px z-40 bg-white border-b border-zinc-100 py-4">
         <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar w-full md:w-auto">
             {categories.map((category) => (
@@ -227,7 +227,7 @@ export default function Shop() {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="rounded-xl border-zinc-100 p-2 min-w-[160px]"
+                className="rounded-xl border-zinc-100 p-2 min-w-160px"
               >
                 <DropdownMenuItem
                   onClick={() => setSortBy("featured")}
@@ -276,7 +276,7 @@ export default function Shop() {
                   >
                     <Card className="border-none bg-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-sm group overflow-hidden h-full flex flex-col">
                       <CardContent className="p-0 flex flex-col h-full">
-                        <div className="relative aspect-[4/5] overflow-hidden bg-zinc-100">
+                        <div className="relative aspect-4/5 overflow-hidden bg-zinc-100">
                           <Image
                             src={product.image}
                             alt={product.name}

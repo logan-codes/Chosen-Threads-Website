@@ -249,7 +249,7 @@ export default function Home() {
                 className="border-none bg-white shadow-sm hover:shadow-xl transition-all duration-300 rounded-sm group overflow-hidden"
               >
                 <CardContent className="p-0">
-                  <div className="relative aspect-[4/5] overflow-hidden bg-zinc-100">
+                  <div className="relative aspect-4/5 overflow-hidden bg-zinc-100">
                     <Image
                       src={product.image}
                       alt={product.name}

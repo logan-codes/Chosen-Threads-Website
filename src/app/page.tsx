@@ -131,7 +131,6 @@ export default function Home() {
           />
           <div className="absolute inset-0 bg-white/40" />
         </motion.div>
-
         <div className="relative z-10 text-center px-6 max-w-4xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

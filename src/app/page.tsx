@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
+import Link from "next/link";
 import { ArrowRight, Menu, ShoppingBag, Search, X, Instagram, Facebook, Twitter, Sparkles, MoveRight, Star, Settings, ShieldCheck, Palette, Laptop } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

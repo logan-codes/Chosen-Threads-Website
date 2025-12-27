@@ -13,7 +13,7 @@ export default function Footer() {
           <div className="space-y-6">
             <div className="flex items-center gap-2">
               <Image
-                src="logo.jpg"
+                src="/logo.jpg"
                 alt="Chosen Threads Logo"
                 width={64}
                 height={64}

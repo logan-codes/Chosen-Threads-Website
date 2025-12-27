@@ -24,120 +24,51 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Footer from "@/components/Footer";
+import { supabase } from "@/lib/supabaseClient";
 
-const allProducts = [
-  {
-    id: 1,
-    name: "Essential Heavyweight Tee",
-    category: "Apparel",
-    price: 65,
-    image:
-      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.9,
-    tag: "Best Seller",
-  },
-  {
-    id: 2,
-    name: "Premium Oversized Hoodie",
-    category: "Apparel",
-    price: 145,
-    image:
-      "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 5.0,
-    tag: "New Drop",
-  },
-  {
-    id: 3,
-    name: "Custom Tapered Denim",
-    category: "Apparel",
-    price: 180,
-    image:
-      "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.8,
-  },
-  {
-    id: 4,
-    name: "Insulated Aurum Cup",
-    category: "Lifestyle",
-    price: 45,
-    image:
-      "https://images.unsplash.com/photo-1517256011271-bc50875c7423?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.7,
-  },
-  {
-    id: 5,
-    name: "Graphic Capsule Tee",
-    category: "Apparel",
-    price: 75,
-    image:
-      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&q=80&w=800",
-    customizable: false,
-    rating: 4.9,
-  },
-  {
-    id: 6,
-    name: "Minimalist Windbreaker",
-    category: "Apparel",
-    price: 210,
-    image:
-      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 5.0,
-  },
-  {
-    id: 7,
-    name: "Aurum Signature Cap",
-    category: "Accessories",
-    price: 55,
-    image:
-      "https://images.unsplash.com/photo-1588850567045-1612b8042a25?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.6,
-  },
-  {
-    id: 8,
-    name: "Luxury Fleece Joggers",
-    category: "Apparel",
-    price: 120,
-    image:
-      "https://images.unsplash.com/photo-1552902865-b72c031ac5ea?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.9,
-  },
-  {
-    id: 9,
-    name: "Aurum Ceramic Mug",
-    category: "Lifestyle",
-    price: 35,
-    image:
-      "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.8,
-  },
-  {
-    id: 10,
-    name: "Technical Canvas Tote",
-    category: "Accessories",
-    price: 85,
-    image:
-      "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.7,
-  },
-];
-
-const categories = ["All", "Apparel", "Lifestyle", "Accessories"];
+type Product = {
+  id: number;
+  name: string;
+  category: string;
+  price: number;
+  image: string;
+  customizable: boolean;
+  rating: number;
+  tag?: string | null;
+};
 
 export default function Shop() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState("All");
   const [sortBy, setSortBy] = React.useState("featured");
+  const [products, setProducts] = React.useState<Product[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
-  const filteredProducts = allProducts
+  React.useEffect(() => {
+    const loadProducts = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("products")
+        .select("id,name,category,price,image,customizable,rating,tag")
+        .order("id", { ascending: true });
+      if (error) {
+        console.error("Supabase products fetch error:", error.message);
+        setProducts([]);
+      } else {
+        setProducts((data as Product[]) || []);
+      }
+      setLoading(false);
+    };
+    loadProducts();
+  }, []);
+
+  const categories = React.useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => set.add(p.category));
+    return ["All", ...Array.from(set)];
+  }, [products]);
+
+  const filteredProducts = products
     .filter((product) => {
       const matchesSearch = product.name
         .toLowerCase()
@@ -157,7 +88,7 @@ export default function Shop() {
     <div className="flex flex-col min-h-screen bg-white text-foreground selection:bg-primary selection:text-white">
       {/* Navigation */}
       <Navigation
-        showBack
+      
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
       />
@@ -262,7 +193,11 @@ export default function Shop() {
       {/* Grid */}
       <section className="py-12 bg-white min-h-[600px]">
         <div className="container mx-auto px-6">
-          {filteredProducts.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-24 text-zinc-400">
+              Loading products…
+            </div>
+          ) : filteredProducts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               <AnimatePresence mode="popLayout">
                 {filteredProducts.map((product) => (
@@ -307,14 +242,23 @@ export default function Shop() {
                             <span className="text-xl font-bold text-foreground tracking-tighter">
                               ₹{product.price}
                             </span>
-                            <Button
-                              size="sm"
-                              className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
-                            >
-                              {product.customizable
-                                ? "Customize"
-                                : "Add to Cart"}
-                            </Button>
+                            {product.customizable ? (
+                              <Link href={`/customize?productId=${product.id}&color=white`}>
+                                <Button
+                                  size="sm"
+                                  className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
+                                >
+                                  Customize
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
+                              >
+                                Add to Cart
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardContent>

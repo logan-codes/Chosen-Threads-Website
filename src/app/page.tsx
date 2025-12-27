@@ -107,11 +107,12 @@ export default function Home() {
   const { scrollY } = useScroll();
   const heroOpacity = useTransform(scrollY, [0, 500], [1, 0.5]);
   const heroScale = useTransform(scrollY, [0, 500], [1, 1.05]);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-foreground selection:bg-primary selection:text-white">
       {/* Navigation */}
-      <Navigation />
+      <Navigation searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       {/* Hero Section */}
       <section className="relative h-[85vh] flex items-center justify-center overflow-hidden bg-zinc-50 pt-20">

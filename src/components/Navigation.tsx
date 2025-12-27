@@ -2,143 +2,241 @@
 
 import React from "react";
 import Link from "next/link";
-import { Menu, Search, ShoppingBag, ArrowLeft, X } from "lucide-react";
+import { Menu, Search, ShoppingBag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  NavigationMenu,
+  NavigationMenuList,
+  NavigationMenuItem,
+  NavigationMenuTrigger,
+  NavigationMenuContent,
+  NavigationMenuLink,
+} from "@/components/ui/navigation-menu";
 
 type Props = {
-  showBack?: boolean;
-  backHref?: string;
   searchQuery?: string;
   setSearchQuery?: (v: string) => void;
 };
 
-export default function Navigation({
-  showBack,
-  backHref = "/",
-  searchQuery,
-  setSearchQuery,
-}: Props) {
+export default function Navigation({ searchQuery, setSearchQuery }: Props) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const isMobile = useIsMobile();
+  
+
+  React.useEffect(() => {
+    // Close mobile-only UI when switching to desktop view
+    if (!isMobile) {
+      setIsMenuOpen(false);
+      setIsSearchOpen(false);
+    }
+  }, [isMobile]);
 
   return (
     <>
       {/* NAVBAR */}
-      <nav className="fixed top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-zinc-100 h-16">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          {/* LEFT */}
-          <div className="flex items-center gap-4">
-            {showBack ? (
-              <Link href={backHref}>
-                <Button className="group" variant="ghost" size="icon">
-                  <ArrowLeft className="w-5 h-5 text-primary group-hover:text-white" />
-                </Button>
-              </Link>
-            ) : (
+      <nav className="fixed top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-zinc-100">
+        <div className="h-16 container mx-auto px-4 flex items-center justify-between md:justify-end">
+          {/* LEFT — MENU */}
+          {isMobile && (
+            <div className="justify-start">
               <Button
                 variant="ghost"
                 size="icon"
                 className="group hover:bg-primary"
                 onClick={() => setIsMenuOpen(true)}
+                aria-label="Open menu"
               >
                 <Menu className="w-6 h-6 text-primary group-hover:text-white transition-all" />
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* LOGO */}
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+          {/* CENTER — LOGO */}
+          <div className="absolute left-1/2 -translate-x-1/2">
             <Image
               src="/logo.jpg"
               alt="Chosen Threads Logo"
               width={64}
               height={64}
+              priority
             />
           </div>
 
           {/* RIGHT */}
-          <div className="flex items-center gap-3">
-            {setSearchQuery ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsMenuOpen(true)}
-              >
-                <Search className="w-5 h-5" />
-              </Button>
-            ) : (
-              <Button variant="ghost" size="icon">
-                <Search className="w-5 h-5" />
-              </Button>
-            )}
+          <div className="flex items-center gap-3 ">
+            {setSearchQuery &&
+              (isMobile ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSearchOpen((p) => !p)}
+                  aria-label="Toggle search"
+                >
+                  <Search className="w-5 h-5 justify-end" />
+                </Button>
+              ) : (
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products..."
+                  className="w-48 md:w-64"
+                />
+              ))}
 
-            <Button variant="ghost" size="icon" className="relative">
-              <ShoppingBag className="w-5 h-5" />
-              {/* <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[8px] rounded-full flex items-center justify-center">
-                2
-              </span> */}
-            </Button>
+            <Link href="/checkout">
+              <Button variant="ghost" size="icon" aria-label="Go to checkout">
+                <ShoppingBag className="w-5 h-5 justify-end" />
+              </Button>
+            </Link>
           </div>
         </div>
-      </nav>
 
-      {/* DRAWER (ALL VIEWPORTS) */}
-      <div
-        className={`fixed inset-0 z-50 transition ${
-          isMenuOpen ? "visible" : "invisible"
-        }`}
-      >
-        {/* BACKDROP */}
-        <div
-          onClick={() => setIsMenuOpen(false)}
-          className={`absolute inset-0 bg-black/40 transition-opacity ${
-            isMenuOpen ? "opacity-100" : "opacity-0"
-          }`}
-        />
-
-        {/* DRAWER */}
-        <div
-          className={`absolute left-0 top-0 h-full w-80 bg-white p-6 transform transition-transform ${
-            isMenuOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-8">
-            <span className="font-bold tracking-widest">MENU</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              <X />
-            </Button>
-          </div>
-
-          {/* SEARCH */}
-          {setSearchQuery && (
-            <div className="mb-6">
+        {/* SEARCH BAR DROPDOWN */}
+        {setSearchQuery && isMobile && (
+          <div
+            className={`overflow-hidden transition-all duration-300 border-t border-zinc-100 ${
+              isSearchOpen ? "max-h-24 opacity-100" : "max-h-0 opacity-0"
+            }`}
+          >
+            <div className="container mx-auto px-4 py-3">
               <Input
+                autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products..."
               />
             </div>
-          )}
+          </div>
+        )}
+      </nav>
 
-          {/* NAV LINKS */}
-          <nav className="flex flex-col gap-5 text-sm font-semibold uppercase tracking-widest text-zinc-600">
-            <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
-              Shop
-            </Link>
-            <Link href="/customize" onClick={() => setIsMenuOpen(false)}>
-              Customize
-            </Link>
-          </nav>
+      {/* DESKTOP SUB-NAV BELOW NAVBAR */}
+      {!isMobile && (
+        <div className="fixed top-16 z-40 w-full bg-white/90 backdrop-blur-xl border-b border-zinc-100">
+          <div className="container mx-auto px-4 py-2 flex items-center justify-center relative">
+            <NavigationMenu viewport={false} className="justify-end">
+              <NavigationMenuList className="gap-6">
+                <NavigationMenuItem>
+                  <NavigationMenuTrigger className="bg-transparent uppercase tracking-widest ">
+                    Shop
+                  </NavigationMenuTrigger>
+                  <NavigationMenuContent className="">
+                    <div className="w-[520px] p-6 grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <Link
+                        href="/shop"
+                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                      >
+                        T-Shirts
+                      </Link>
+                      <Link
+                        href="/shop"
+                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                      >
+                        Jeans
+                      </Link>
+                      <Link
+                        href="/shop"
+                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                      >
+                        Pants
+                      </Link>
+                      <Link
+                        href="/shop"
+                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                      >
+                        Hoodies
+                      </Link>
+                      <Link
+                        href="/shop"
+                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                      >
+                        Jackets
+                      </Link>
+                      <Link
+                        href="/shop"
+                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                      >
+                        Accessories
+                      </Link>
+                    </div>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+
+                <NavigationMenuItem>
+                  <NavigationMenuLink
+                    href="/customize"
+                    className="uppercase tracking-widest"
+                  >
+                    Customize
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* SPACER */}
-      <div className="h-[72px]" />
+      {/* DRAWER */}
+      {isMobile && (
+        <div
+          className={`fixed inset-0 z-50 transition ${
+            isMenuOpen ? "visible" : "invisible"
+          }`}
+        >
+          {/* BACKDROP */}
+          <div
+            onClick={() => setIsMenuOpen(false)}
+            className={`absolute inset-0 bg-black/40 transition-opacity ${
+              isMenuOpen ? "opacity-100" : "opacity-0"
+            }`}
+          />
+
+          {/* DRAWER PANEL */}
+          <div
+            className={`absolute left-0 top-0 h-full w-80 bg-white p-6 transform transition-transform ${
+              isMenuOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-8">
+              <span className="font-bold tracking-widest">MENU</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                <X />
+              </Button>
+            </div>
+
+            {/* NAV LINKS */}
+            <nav className="flex flex-col gap-5 text-sm font-semibold uppercase tracking-widest text-zinc-600">
+              <Link href="/" onClick={() => setIsMenuOpen(false)}>
+                Home
+              </Link>
+              <Link href="/shop" onClick={() => setIsMenuOpen(false)}>
+                Shop
+              </Link>
+              <Link href="/customize" onClick={() => setIsMenuOpen(false)}>
+                Customize
+              </Link>
+              <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+                Login
+              </Link>
+              <Link href="/signup" onClick={() => setIsMenuOpen(false)}>
+                Sign Up
+              </Link>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* SPACER: account for fixed navbar (64px) + subnav (~40px) */}
+      <div className="h-[120px]" />
     </>
   );
 }

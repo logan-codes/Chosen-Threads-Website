@@ -2,11 +2,13 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, Search, ShoppingBag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { supabase } from "@/lib/supabaseClient";
 import {
   NavigationMenu,
   NavigationMenuList,
@@ -25,7 +27,35 @@ export default function Navigation({ searchQuery, setSearchQuery }: Props) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const isMobile = useIsMobile();
-  
+
+  const router = useRouter();
+  const [user, setUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (mounted) setUser(data.user);
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe?.();
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    router.push("/");
+  };
 
   React.useEffect(() => {
     // Close mobile-only UI when switching to desktop view
@@ -57,13 +87,15 @@ export default function Navigation({ searchQuery, setSearchQuery }: Props) {
 
           {/* CENTER — LOGO */}
           <div className="absolute left-1/2 -translate-x-1/2">
-            <Image
-              src="/logo.jpg"
-              alt="Chosen Threads Logo"
-              width={64}
-              height={64}
-              priority
-            />
+            <Link href="/">
+              <Image
+                src="/logo.jpg"
+                alt="Chosen Threads Logo"
+                width={64}
+                height={64}
+                priority
+              />
+            </Link>
           </div>
 
           {/* RIGHT */}
@@ -87,11 +119,40 @@ export default function Navigation({ searchQuery, setSearchQuery }: Props) {
                 />
               ))}
 
-            <Link href="/checkout">
-              <Button variant="ghost" size="icon" aria-label="Go to checkout">
-                <ShoppingBag className="w-5 h-5 justify-end" />
-              </Button>
-            </Link>
+            {user ? (
+              <>
+                <Button variant="ghost" onClick={handleSignOut}>
+                  Logout
+                </Button>
+                <Link href="/checkout">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Go to checkout"
+                  >
+                    <ShoppingBag className="w-5 h-5 justify-end" />
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">Login</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button>Sign Up</Button>
+                </Link>
+                <Link href="/checkout">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Go to checkout"
+                  >
+                    <ShoppingBag className="w-5 h-5 justify-end" />
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -224,12 +285,26 @@ export default function Navigation({ searchQuery, setSearchQuery }: Props) {
               <Link href="/customize" onClick={() => setIsMenuOpen(false)}>
                 Customize
               </Link>
-              <Link href="/login" onClick={() => setIsMenuOpen(false)}>
-                Login
-              </Link>
-              <Link href="/signup" onClick={() => setIsMenuOpen(false)}>
-                Sign Up
-              </Link>
+              {user ? (
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    setIsMenuOpen(false);
+                  }}
+                  className="text-left"
+                >
+                  Logout
+                </button>
+              ) : (
+                <>
+                  <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+                    Login
+                  </Link>
+                  <Link href="/signup" onClick={() => setIsMenuOpen(false)}>
+                    Sign Up
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         </div>

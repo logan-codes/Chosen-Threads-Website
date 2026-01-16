@@ -4,14 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ShoppingBag,
-  Search,
-  X,
-  Star,
-  SlidersHorizontal,
-  ChevronDown,
-} from "lucide-react";
+import { Search, Star, SlidersHorizontal, ChevronDown } from "lucide-react";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +19,7 @@ import {
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabaseClient";
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 type Product = {
   id: number;
@@ -38,7 +32,7 @@ type Product = {
   tag?: string | null;
 };
 
-export default function Shop() {
+function ShopContent() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState("All");
   const [sortBy, setSortBy] = React.useState("featured");
@@ -59,7 +53,6 @@ export default function Shop() {
       } else {
         setProducts((data as Product[]) || []);
       }
-
       if (searchParams.get("category")) {
         setSelectedCategory(searchParams.get("category")!);
       }
@@ -94,11 +87,7 @@ export default function Shop() {
   return (
     <div className="flex flex-col min-h-screen bg-white text-foreground selection:bg-primary selection:text-white">
       {/* Navigation */}
-      <Navigation
-      
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-      />
+      <Navigation searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       {/* Shop Header */}
       <section className="py-12 md:py-20 bg-zinc-50 border-b border-zinc-100">
@@ -250,7 +239,9 @@ export default function Shop() {
                               ₹{product.price}
                             </span>
                             {product.customizable ? (
-                              <Link href={`/customize?productId=${product.id}&color=white`}>
+                              <Link
+                                href={`/customize?productId=${product.id}&color=white`}
+                              >
                                 <Button
                                   size="sm"
                                   className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
@@ -302,7 +293,21 @@ export default function Shop() {
       </section>
 
       {/* Footer */}
-      <Footer/>
+      <Footer />
     </div>
+  );
+}
+
+export default function Shop() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          Loading...
+        </div>
+      }
+    >
+      <ShopContent />
+    </Suspense>
   );
 }

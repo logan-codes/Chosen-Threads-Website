@@ -23,6 +23,12 @@ type Props = {
   setSearchQuery?: (v: string) => void;
 };
 
+const categories = [
+  { id: 1, name: "Apparel" },
+  { id: 2, name: "Lifestyle" },
+  { id: 3, name: "Accessories" },
+  { id: 4, name: "Hoodies" },
+  ]
 export default function Navigation({ searchQuery, setSearchQuery }: Props) {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
@@ -187,42 +193,13 @@ export default function Navigation({ searchQuery, setSearchQuery }: Props) {
                   </NavigationMenuTrigger>
                   <NavigationMenuContent className="">
                     <div className="w-[520px] p-6 grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <Link
-                        href="/shop"
-                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
-                      >
-                        T-Shirts
-                      </Link>
-                      <Link
-                        href="/shop"
-                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
-                      >
-                        Jeans
-                      </Link>
-                      <Link
-                        href="/shop"
-                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
-                      >
-                        Pants
-                      </Link>
-                      <Link
-                        href="/shop"
-                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
-                      >
-                        Hoodies
-                      </Link>
-                      <Link
-                        href="/shop"
-                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
-                      >
-                        Jackets
-                      </Link>
-                      <Link
-                        href="/shop"
-                        className="text-sm font-semibold text-zinc-700 hover:text-primary"
-                      >
-                        Accessories
-                      </Link>
+                      {categories.map((category)=> (
+                        <Link
+                          key={category.id} 
+                          href={`/shop?category=${category.name}`}
+                          className="text-sm font-semibold text-zinc-700 hover:text-primary"
+                        >{category.name}</Link>
+                        ))}
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>

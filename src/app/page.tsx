@@ -17,98 +17,45 @@ import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AnimatePresence } from "framer-motion";
+import { supabase } from "@/lib/supabaseClient";
 
-const products = [
-  {
-    id: 1,
-    name: "Essential Heavyweight Tee",
-    category: "Signature Basics",
-    price: "65",
-    image:
-      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.9,
-    tag: "Most Popular",
-  },
-  {
-    id: 2,
-    name: "Premium Oversized Hoodie",
-    category: "Street Luxe",
-    price: "145",
-    image:
-      "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 5.0,
-    tag: "New Drop",
-  },
-  {
-    id: 3,
-    name: "Custom Tapered Denim",
-    category: "Denim Lab",
-    price: "180",
-    image:
-      "https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.8,
-  },
-  {
-    id: 4,
-    name: "Insulated Aurum Cup",
-    category: "Lifestyle",
-    price: "45",
-    image:
-      "https://images.unsplash.com/photo-1517256011271-bc50875c7423?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.7,
-  },
-  {
-    id: 5,
-    name: "Graphic Capsule Tee",
-    category: "Artisan Series",
-    price: "75",
-    image:
-      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&q=80&w=800",
-    customizable: false,
-    rating: 4.9,
-  },
-  {
-    id: 6,
-    name: "Minimalist Windbreaker",
-    category: "Outerwear",
-    price: "210",
-    image:
-      "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 5.0,
-  },
-  {
-    id: 7,
-    name: "Aurum Signature Cap",
-    category: "Accessories",
-    price: "55",
-    image:
-      "https://images.unsplash.com/photo-1588850567045-1612b8042a25?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.6,
-  },
-  {
-    id: 8,
-    name: "Luxury Fleece Joggers",
-    category: "Street Luxe",
-    price: "120",
-    image:
-      "https://images.unsplash.com/photo-1552902865-b72c031ac5ea?auto=format&fit=crop&q=80&w=800",
-    customizable: true,
-    rating: 4.9,
-  },
-];
+type Product = {
+  id: number;
+  name: string;
+  category: string;
+  price: number;
+  image: string;
+  customizable: boolean;
+  rating: number;
+  tag?: string | null;
+};
 
 export default function Home() {
   const { scrollY } = useScroll();
   const heroOpacity = useTransform(scrollY, [0, 500], [1, 0.5]);
   const heroScale = useTransform(scrollY, [0, 500], [1, 1.05]);
   const [searchQuery, setSearchQuery] = React.useState("");
-
+  const [products, setProducts] = React.useState<Product[]>([]);
+    const [loading, setLoading] = React.useState(true);
+React.useEffect(() => {
+    const loadProducts = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("Products")
+        .select("id,name,category,price,image,customizable,rating,tag")
+        .order("id", { ascending: true })
+        .limit(8);
+      if (error) {
+        console.error("Supabase products fetch error:", error.message);
+        setProducts([]);
+      } else {
+        setProducts((data as Product[]) || []);
+      }
+      setLoading(false);
+    };
+    loadProducts();
+  }, []);
   return (
     <div className="flex flex-col min-h-screen bg-white text-foreground selection:bg-primary selection:text-white">
       {/* Navigation */}
@@ -139,7 +86,7 @@ export default function Home() {
             transition={{ duration: 0.8 }}
           >
             <Badge className="bg-primary/10 text-primary border-primary/20 rounded-full px-6 py-2 mb-8 text-[10px] uppercase tracking-widest font-bold backdrop-blur-md">
-              The 2024 Personalization Drop
+              The 2026 Personalization Drop
             </Badge>
             <h2 className="text-5xl md:text-8xl font-serif text-foreground mb-10 leading-[0.9] tracking-tight">
               Premium Build. <br />{" "}
@@ -150,7 +97,7 @@ export default function Home() {
               and the power of individual customization.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link href="/shop">
+              <Link href="/customize">
                 <Button
                   size="lg"
                   className="bg-primary text-white hover:bg-foreground transition-all px-12 py-8 text-xs font-bold uppercase tracking-widest rounded-sm shadow-xl shadow-primary/20"
@@ -242,56 +189,84 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {products.map((product) => (
-              <Card
-                key={product.id}
-                className="border-none bg-white shadow-sm hover:shadow-xl transition-all duration-300 rounded-sm group overflow-hidden"
-              >
-                <CardContent className="p-0">
-                  <div className="relative aspect-4/5 overflow-hidden bg-zinc-100">
-                    <Image
-                      src={product.image}
-                      alt={product.name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    {product.tag && (
-                      <Badge className="absolute top-4 left-4 bg-primary text-white rounded-full text-[8px] uppercase tracking-widest px-3 py-1 border-none">
-                        {product.tag}
-                      </Badge>
-                    )}
-                    <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <div className="p-6">
-                    <div className="flex items-center gap-1 mb-2">
-                      <Star className="w-3 h-3 fill-primary text-primary" />
-                      <span className="text-[10px] font-bold text-zinc-400">
-                        {product.rating}
-                      </span>
-                    </div>
-                    <h4 className="font-bold text-foreground text-lg mb-1 group-hover:text-primary transition-colors">
-                      {product.name}
-                    </h4>
-                    <p className="text-zinc-400 text-[10px] uppercase tracking-widest mb-4 font-bold">
-                      {product.category}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xl font-bold text-foreground tracking-tighter">
-                        ₹{product.price}
-                      </span>
-                      <Button
-                        size="sm"
-                        className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
-                      >
-                        {product.customizable ? "Customize" : "Add to Cart"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        <div className="container mx-auto px-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-24 text-zinc-400">
+              Loading products…
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              <AnimatePresence mode="popLayout">
+                {products.map((product) => (
+                  <motion.div
+                    key={product.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Card className="border-none bg-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-sm group overflow-hidden h-full flex flex-col">
+                      <CardContent className="p-0 flex flex-col h-full">
+                        <div className="relative aspect-4/5 overflow-hidden bg-zinc-100">
+                          <Image
+                            src={product.image}
+                            alt={product.name}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-700"
+                          />
+                          {product.tag && (
+                            <Badge className="absolute top-4 left-4 bg-primary text-white rounded-full text-[8px] uppercase tracking-widest px-3 py-1 border-none">
+                              {product.tag}
+                            </Badge>
+                          )}
+                          <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="p-6 flex flex-col flex-1">
+                          <div className="flex items-center gap-1 mb-2">
+                            <Star className="w-3 h-3 fill-primary text-primary" />
+                            <span className="text-[10px] font-bold text-zinc-400">
+                              {product.rating}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-foreground text-lg mb-1 group-hover:text-primary transition-colors">
+                            {product.name}
+                          </h4>
+                          <p className="text-zinc-400 text-[10px] uppercase tracking-widest mb-4 font-bold">
+                            {product.category}
+                          </p>
+                          <div className="mt-auto flex items-center justify-between pt-4">
+                            <span className="text-xl font-bold text-foreground tracking-tighter">
+                              ₹{product.price}
+                            </span>
+                            {product.customizable ? (
+                              <Link href={`/customize?productId=${product.id}&color=white`}>
+                                <Button
+                                  size="sm"
+                                  className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
+                                >
+                                  Customize
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button
+                                size="sm"
+                                className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
+                              >
+                                Add to Cart
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+         )}
+        </div>
+      
         </div>
       </section>
 
@@ -343,7 +318,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/shop">
+              <Link href="/customize">
                 <Button
                   size="lg"
                   className="bg-primary text-white px-12 py-8 rounded-sm text-xs font-bold uppercase tracking-widest hover:scale-105 transition-transform"

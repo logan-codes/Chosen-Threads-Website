@@ -6,21 +6,14 @@ import { Suspense } from "react";
 import {
   Undo2,
   Redo2,
-  Save,
-  Share2,
-  Phone,
   ShoppingCart,
-  Type,
   Image as ImageIcon,
-  Palette,
-  Hash,
-  User,
   Shirt,
-  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import Link from "next/link";
 
 type ProductView = "FRONT" | "BACK" | "RIGHT" | "LEFT";
 
@@ -46,11 +39,7 @@ function CustomizeEditor() {
 
   const navItems = [
     { id: "products", label: "Products", icon: Shirt },
-    { id: "text", label: "Text", icon: Type },
     { id: "image", label: "Image", icon: ImageIcon },
-    { id: "art", label: "Art", icon: Palette },
-    { id: "names-numbers", label: "Names & Numbers", icon: Hash },
-    { id: "name", label: "Name", icon: User },
     { id: "order", label: "Order", icon: ShoppingCart },
   ];
 
@@ -59,9 +48,7 @@ function CustomizeEditor() {
   const actionButtons = [
     { id: "undo", label: "Undo", icon: Undo2 },
     { id: "redo", label: "Redo", icon: Redo2 },
-    { id: "save", label: "Save", icon: Save },
-    { id: "share", label: "Share", icon: Share2 },
-    { id: "contact", label: "Contact", icon: Phone },
+    
   ];
 
   return (
@@ -70,7 +57,9 @@ function CustomizeEditor() {
       <aside className="w-64 bg-[#f5f3f0] border-r border-[#e8e5e0] flex flex-col">
         {/* Logo */}
         <div className="p-6 border-b border-[#e8e5e0]">
+          <Link href="/">
           <Image src="/logo.jpg" alt="Chosen Threads Logo" width={100} height={100} />
+          </Link>
         </div>
 
         {/* Navigation Items */}
@@ -92,15 +81,7 @@ function CustomizeEditor() {
                   >
                     <Icon className="w-5 h-5" />
                     <span className="text-sm font-medium">
-                      {item.label === "Names & Numbers" ? (
-                        <span className="flex flex-col leading-tight">
-                          <span>NAMES</span>
-                          <span className="text-[10px]">&</span>
-                          <span>NUMBERS</span>
-                        </span>
-                      ) : (
-                        item.label
-                      )}
+                        {item.label}
                     </span>
                   </button>
                 </li>
@@ -215,9 +196,9 @@ function CustomizeEditor() {
       </div>
 
       {/* Right Sidebar */}
-      <aside className="w-64 bg-white border-l border-[#e8e5e0] flex flex-col items-center py-6 px-4">
+      <aside className="w-64 bg-white border-l border-[#e8e5e0] flex flex-col items-center py-6 px-4 align-middle ">
         {/* Product View Thumbnails */}
-        <div className="space-y-4 mb-6">
+        <div className="space-y-4 my-auto">
           {productViews.map((view) => {
             const isSelected = selectedView === view;
             return (
@@ -237,43 +218,8 @@ function CustomizeEditor() {
                       : "border-gray-300"
                   )}
                 >
-                  {/* Mini t-shirt preview */}
-                  <div className="w-14 h-14">
-                    <svg
-                      viewBox="0 0 100 120"
-                      className="w-full h-full"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      {/* Left Sleeve */}
-                      <path
-                        d="M 10 30 Q 10 20 12 18 Q 14 16 16 18 L 16 60 Q 16 70 14 72 Q 12 74 10 72 Z"
-                        fill={selectedColor}
-                        stroke="#cbd5e1"
-                        strokeWidth="0.8"
-                      />
-                      {/* Right Sleeve */}
-                      <path
-                        d="M 90 30 Q 90 20 88 18 Q 86 16 84 18 L 84 60 Q 84 70 86 72 Q 88 74 90 72 Z"
-                        fill={selectedColor}
-                        stroke="#cbd5e1"
-                        strokeWidth="0.8"
-                      />
-                      {/* Main Body */}
-                      <path
-                        d="M 16 18 Q 16 10 20 10 L 80 10 Q 84 10 84 18 L 84 100 Q 84 110 80 110 L 20 110 Q 16 110 16 100 Z"
-                        fill={selectedColor}
-                        stroke="#cbd5e1"
-                        strokeWidth="0.8"
-                      />
-                      {/* Neck */}
-                      <path
-                        d="M 35 18 Q 50 18 65 18 Q 65 12 50 12 Q 35 12 35 18"
-                        fill={selectedColor}
-                        stroke="#cbd5e1"
-                        strokeWidth="0.8"
-                      />
-                    </svg>
-                  </div>
+                  {/* TODO-Mini t-shirt preview */}
+                  
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-700">
                   {view}
@@ -282,14 +228,6 @@ function CustomizeEditor() {
             );
           })}
         </div>
-
-        {/* TRY 360° Button */}
-        <Button
-          className="w-full bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2"
-        >
-          <RotateCcw className="w-4 h-4" />
-          TRY 360°
-        </Button>
       </aside>
     </div>
   );

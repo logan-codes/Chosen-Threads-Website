@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Footer from "@/components/Footer";
 import { supabase } from "@/lib/supabaseClient";
+import { useSearchParams } from "next/navigation";
 
 type Product = {
   id: number;
@@ -43,12 +44,13 @@ export default function Shop() {
   const [sortBy, setSortBy] = React.useState("featured");
   const [products, setProducts] = React.useState<Product[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const searchParams = useSearchParams();
 
   React.useEffect(() => {
     const loadProducts = async () => {
       setLoading(true);
       const { data, error } = await supabase
-        .from("products")
+        .from("Products")
         .select("id,name,category,price,image,customizable,rating,tag")
         .order("id", { ascending: true });
       if (error) {
@@ -57,10 +59,15 @@ export default function Shop() {
       } else {
         setProducts((data as Product[]) || []);
       }
+
+      if (searchParams.get("category")) {
+        setSelectedCategory(searchParams.get("category")!);
+      }
+
       setLoading(false);
     };
     loadProducts();
-  }, []);
+  }, [searchParams]);
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();

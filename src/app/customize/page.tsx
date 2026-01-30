@@ -725,30 +725,29 @@ function CustomizeEditor() {
             e.cancelBubble = true;
             setSelectedImageId(`${view}-image`);
           }}
+          offsetX={image.width / 2}
+          offsetY={image.height / 2}
           onDragMove={(e) => {
             const node = e.target;
-            const newX = node.x();
-            const newY = node.y();
-            
-            // Constrain to canvas bounds (accounting for image size)
-            const minX = 0;
-            const maxX = areaWidth - imageWidth;
-            const minY = 0;
-            const maxY = areaHeight - imageHeight;
-            
-            // Apply constraints
-            let constrainedX = Math.max(minX, Math.min(maxX, newX));
-            let constrainedY = Math.max(minY, Math.min(maxY, newY));
-            
-            // If image is larger than canvas, center it
-            if (imageWidth > areaWidth) {
-              constrainedX = (areaWidth - imageWidth) / 2;
-            }
-            if (imageHeight > areaHeight) {
-              constrainedY = (areaHeight - imageHeight) / 2;
-            }
-            
-            node.position({ x: constrainedX, y: constrainedY });
+            const stage = node.getStage();
+            if (!stage) return;
+
+            const box = node.getClientRect();
+            const stageWidth = stage.width();
+            const stageHeight = stage.height();
+
+            let newX = node.x();
+            let newY = node.y();
+
+            // Top-left corner
+            if (box.x < 0) newX -= box.x;
+            if (box.y < 0) newY -= box.y;
+
+            // Bottom-right corner
+            if (box.x + box.width > stageWidth) newX -= (box.x + box.width - stageWidth);
+            if (box.y + box.height > stageHeight) newY -= (box.y + box.height - stageHeight);
+
+            node.position({ x: newX, y: newY });
           }}
           onDragEnd={(e) => {
             const node = e.target;
@@ -759,37 +758,32 @@ function CustomizeEditor() {
               ...prev,
               [view]: {
                 ...prev[view],
-                x: Math.max(0, Math.min(1, newX)),
-                y: Math.max(0, Math.min(1, newY)),
+                x: newX,
+                y: newY,
               },
             }));
           }}
-          onTransform={() => {
-            const node = imageRef.current;
-            if (!node) return;
-            
-            // Constrain position during transform
-            const newX = node.x();
-            const newY = node.y();
-            const imageWidth = image.width * node.scaleX();
-            const imageHeight = image.height * node.scaleY();
-            
-            const minX = 0;
-            const maxX = areaWidth - imageWidth;
-            const minY = 0;
-            const maxY = areaHeight - imageHeight;
-            
-            let constrainedX = Math.max(minX, Math.min(maxX, newX));
-            let constrainedY = Math.max(minY, Math.min(maxY, newY));
-            
-            if (imageWidth > areaWidth) {
-              constrainedX = (areaWidth - imageWidth) / 2;
-            }
-            if (imageHeight > areaHeight) {
-              constrainedY = (areaHeight - imageHeight) / 2;
-            }
-            
-            node.position({ x: constrainedX, y: constrainedY });
+          onTransform={(e) => {
+            const node = e.target;
+            const stage = node.getStage();
+            if (!stage) return;
+
+            const box = node.getClientRect();
+            const stageWidth = stage.width();
+            const stageHeight = stage.height();
+
+            let newX = node.x();
+            let newY = node.y();
+
+            // Top-left corner
+            if (box.x < 0) newX -= box.x;
+            if (box.y < 0) newY -= box.y;
+
+            // Bottom-right corner
+            if (box.x + box.width > stageWidth) newX -= (box.x + box.width - stageWidth);
+            if (box.y + box.height > stageHeight) newY -= (box.y + box.height - stageHeight);
+
+            node.position({ x: newX, y: newY });
           }}
           onTransformEnd={() => {
             const node = imageRef.current;

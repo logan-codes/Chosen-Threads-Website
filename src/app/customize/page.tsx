@@ -65,6 +65,11 @@ type DesignArea = {
   height: number; // 0-1 relative to SVG
 };
 
+type ProductConfig = {
+  svgs: Record<ProductView, { d: string; stroke: string; strokeWidth: number }[]>;
+  designAreas: Record<ProductView, DesignArea>;
+};
+
 function CustomizeEditor() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -117,6 +122,7 @@ function CustomizeEditor() {
   });
   const canvasContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [canvasSize, setCanvasSize] = React.useState({ width: 400, height: 300 });
+  const [productConfig, setProductConfig] = React.useState<ProductConfig | null>(null);
   const [designAreas, setDesignAreas] = React.useState<
     Record<ProductView, DesignArea>
   >({
@@ -134,6 +140,21 @@ function CustomizeEditor() {
     initialX: number;
     initialY: number;
   } | null>(null);
+
+  React.useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const response = await fetch('/product-config.json');
+        const config = await response.json();
+        setProductConfig(config);
+        setDesignAreas(config.designAreas); // Set initial design areas from config
+      } catch (error) {
+        console.error("Failed to load product config:", error);
+      }
+    };
+
+    fetchConfig();
+  }, []);
 
   // Update color when URL param changes
   React.useEffect(() => {
@@ -499,31 +520,16 @@ function CustomizeEditor() {
   };
 
   const renderShirtSVG = (view: ProductView, color: string): string => {
-    if (view === "FRONT" || view === "BACK") {
-      return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-        <path d="M 20 80 Q 20 60 30 50 Q 40 40 50 50 L 50 180 Q 50 200 40 210 Q 30 220 20 210 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 280 80 Q 280 60 270 50 Q 260 40 250 50 L 250 180 Q 250 200 260 210 Q 270 220 280 210 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 50 50 Q 50 30 80 30 L 220 30 Q 250 30 250 50 L 250 350 Q 250 370 220 370 L 80 370 Q 50 370 50 350 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 110 50 Q 150 50 190 50 Q 190 30 150 30 Q 110 30 110 50" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <line x1="50" y1="50" x2="80" y2="30" stroke="#cbd5e1" stroke-width="1" opacity="0.5"/>
-        <line x1="250" y1="50" x2="220" y2="30" stroke="#cbd5e1" stroke-width="1" opacity="0.5"/>
-      </svg>`;
-    } else if (view === "LEFT") {
-      return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-        <path d="M 20 80 Q 20 60 30 50 Q 40 40 50 50 L 50 180 Q 50 200 40 210 Q 30 220 20 210 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 50 50 Q 50 30 80 30 L 150 30 Q 150 50 150 50 L 150 350 Q 150 370 80 370 Q 50 370 50 350 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 110 50 Q 150 50 150 50 Q 150 30 110 30 Q 110 30 110 50" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <line x1="50" y1="50" x2="80" y2="30" stroke="#cbd5e1" stroke-width="1" opacity="0.5"/>
-      </svg>`;
-    } else {
-      // RIGHT view
-      return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-        <path d="M 280 80 Q 280 60 270 50 Q 260 40 250 50 L 250 180 Q 250 200 260 210 Q 270 220 280 210 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 150 50 Q 150 30 220 30 L 250 30 Q 250 50 250 50 L 250 350 Q 250 370 220 370 L 150 370 Q 150 350 150 350 Z" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <path d="M 190 50 Q 150 50 150 50 Q 150 30 190 30 Q 190 30 190 50" fill="${color}" stroke="#d1d5db" stroke-width="1.5"/>
-        <line x1="250" y1="50" x2="220" y2="30" stroke="#cbd5e1" stroke-width="1" opacity="0.5"/>
-      </svg>`;
-    }
+    if (!productConfig) return '';
+
+    const svgPaths = productConfig.svgs[view]
+      .map(
+        (p) =>
+          `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`
+      )
+      .join('');
+
+    return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
   };
 
   const handleOrder = async () => {
@@ -923,10 +929,9 @@ function CustomizeEditor() {
       {selectedNavItem && (
         <div 
           className="absolute left-full w-80 bg-white border-r border-[#e8e5e0] shadow-xl overflow-y-auto z-50"
-          style={{ 
-            top: `${Math.max(20, menuTop)}px`,
-            transform: 'translateY(-50%)',
-            maxHeight: 'calc(100vh - 40px)',
+          style={{
+            top: `80px`, // Position below the header
+            maxHeight: 'calc(100vh - 100px)', // Adjust height to fit
           }}
         >
           <div className="p-4">

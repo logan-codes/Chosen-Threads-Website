@@ -47,6 +47,7 @@ type ProductImage = {
 };
 
 type ViewCustomization = {
+  id: string;
   blobUrl: string | null; // Blob URL for local preview
   file: File | null; // Original file (for upload when order is placed)
   uploadedImageId?: number | null;
@@ -100,12 +101,12 @@ function CustomizeEditor() {
   const [selectedFilePreview, setSelectedFilePreview] = React.useState<string | null>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
   const [viewCustomizations, setViewCustomizations] = React.useState<
-    Record<ProductView, ViewCustomization>
+    Record<ProductView, ViewCustomization[]>
   >({
-    FRONT: { blobUrl: null, file: null, x: 0.5, y: 0.5, scale: 1, rotation: 0 },
-    BACK: { blobUrl: null, file: null, x: 0.5, y: 0.5, scale: 1, rotation: 0 },
-    RIGHT: { blobUrl: null, file: null, x: 0.5, y: 0.5, scale: 1, rotation: 0 },
-    LEFT: { blobUrl: null, file: null, x: 0.5, y: 0.5, scale: 1, rotation: 0 },
+    FRONT: [],
+    BACK: [],
+    RIGHT: [],
+    LEFT: [],
   });
   const [selectedImageId, setSelectedImageId] = React.useState<string | null>(null);
   const stageRefs = React.useRef<Record<ProductView, any>>({
@@ -275,80 +276,91 @@ function CustomizeEditor() {
   const handleAddImageToCanvas = () => {
     if (!selectedFile || !selectedFilePreview) return;
 
-    // Add image to current view's canvas using blob URL
-    setViewCustomizations((prev) => {
-      const currentViewData = prev[selectedView] || {
-        blobUrl: null,
-        file: null,
+    const newImageId = `${selectedView}-${Date.now()}`;
+    const img = new window.Image();
+    img.src = selectedFilePreview;
+    img.onload = () => {
+      const scale = getFitScale(img.width, img.height, canvasSize.width, canvasSize.height);
+      const newCustomization: ViewCustomization = {
+        id: newImageId,
+        blobUrl: selectedFilePreview,
+        file: selectedFile,
         x: 0.5,
         y: 0.5,
-        scale: 1,
+        scale: scale,
         rotation: 0,
       };
-      
-      return {
-        ...prev,
-        [selectedView]: {
-          ...currentViewData,
-          blobUrl: selectedFilePreview,
-          file: selectedFile,
-        },
-      };
-    });
 
-    // Clear selected file and preview
-    setSelectedFile(undefined);
-    setSelectedFilePreview(null);
+      setViewCustomizations((prev) => ({
+        ...prev,
+        [selectedView]: [...prev[selectedView], newCustomization],
+      }));
+
+      setSelectedImageId(newImageId);
+      setSelectedFile(undefined);
+      setSelectedFilePreview(null);
+    };
   };
 
   const handleDeleteCurrentImage = () => {
+    if (!selectedImageId) return;
+
     setViewCustomizations((prev) => {
-      const current = prev[selectedView];
-      // Revoke blob URL to free memory
-      if (current?.blobUrl) {
-        URL.revokeObjectURL(current.blobUrl);
-      }
-      
+      const newCustomizations = prev[selectedView].filter((cust) => {
+        if (cust.id === selectedImageId) {
+          if (cust.blobUrl) {
+            URL.revokeObjectURL(cust.blobUrl);
+          }
+          return false;
+        }
+        return true;
+      });
+
       return {
         ...prev,
-        [selectedView]: {
-          blobUrl: null,
-          file: null,
-          x: 0.5,
-          y: 0.5,
-          scale: 1,
-          rotation: 0,
-        },
+        [selectedView]: newCustomizations,
       };
     });
+
     setSelectedImageId(null);
   };
 
+  const getFitScale = (imgWidth: number, imgHeight: number, canvasWidth: number, canvasHeight: number) => {
+    const widthScale = canvasWidth / imgWidth;
+    const heightScale = canvasHeight / imgHeight;
+    return Math.min(widthScale, heightScale, 1); // Ensure it doesn't scale up beyond original size
+  };
+
   const handleSelectExistingImage = async (image: ProductImage) => {
-    // Fetch the image and create a blob URL for it
     try {
       const response = await fetch(image.url);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
-      
-      // Place the image in the current view's design box
-      setViewCustomizations((prev) => ({
-        ...prev,
-        [selectedView]: {
-          ...(prev[selectedView] || {
-            blobUrl: null,
-            file: null,
-            x: 0.5,
-            y: 0.5,
-            scale: 1,
-            rotation: 0,
-          }),
+
+      const newImageId = `${selectedView}-${Date.now()}`;
+      const img = new window.Image();
+      img.src = blobUrl;
+      img.onload = () => {
+        const scale = getFitScale(img.width, img.height, canvasSize.width, canvasSize.height);
+        const newCustomization: ViewCustomization = {
+          id: newImageId,
           blobUrl: blobUrl,
-          file: null, // Already uploaded, no file needed
+          file: null, // Already uploaded
           uploadedImageId: image.id,
           uploadedUrl: image.url,
-        },
-      }));
+          x: 0.5,
+          y: 0.5,
+          scale: scale,
+          rotation: 0,
+        };
+
+        setViewCustomizations((prev) => ({
+          ...prev,
+          [selectedView]: [...prev[selectedView], newCustomization],
+        }));
+
+        setSelectedImageId(newImageId);
+      };
     } catch (error) {
       console.error("Failed to load image:", error);
       alert("Failed to load image. Please try again.");
@@ -532,35 +544,36 @@ function CustomizeEditor() {
       const views: ProductView[] = ["FRONT", "BACK", "LEFT", "RIGHT"];
       
       for (const view of views) {
-        const customization = viewCustomizations[view];
-        if (customization?.file && !customization.uploadedUrl) {
-          // Upload the file
-          const filePath = `${productId}/${view}/${Date.now()}-${customization.file.name}`;
-          const { error: uploadError } = await supabase.storage
-            .from("Chosen Threads")
-            .upload(filePath, customization.file);
+        const customizations = viewCustomizations[view];
+        for (const customization of customizations) {
+          if (customization?.file && !customization.uploadedUrl) {
+            // Upload the file
+            const filePath = `${productId}/${view}/${Date.now()}-${customization.file.name}`;
+            const { error: uploadError } = await supabase.storage
+              .from("Chosen Threads")
+              .upload(filePath, customization.file);
 
-          if (uploadError) {
-            console.error("Upload error:", uploadError);
-            continue;
+            if (uploadError) {
+              console.error("Upload error:", uploadError);
+              continue;
+            }
+
+            const { data: { publicUrl } } = supabase.storage
+              .from("Chosen Threads")
+              .getPublicUrl(filePath);
+
+            uploadedImageUrls.push(publicUrl);
+
+            // Update state with uploaded URL
+            setViewCustomizations((prev) => ({
+              ...prev,
+              [view]: prev[view].map((c) => 
+                c.id === customization.id ? { ...c, uploadedUrl: publicUrl } : c
+              ),
+            }));
+          } else if (customization?.uploadedUrl) {
+            uploadedImageUrls.push(customization.uploadedUrl);
           }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from("Chosen Threads")
-            .getPublicUrl(filePath);
-
-          uploadedImageUrls.push(publicUrl);
-
-          // Update state with uploaded URL
-          setViewCustomizations((prev) => ({
-            ...prev,
-            [view]: {
-              ...prev[view],
-              uploadedUrl: publicUrl,
-            },
-          }));
-        } else if (customization?.uploadedUrl) {
-          uploadedImageUrls.push(customization.uploadedUrl);
         }
       }
 
@@ -619,24 +632,25 @@ function CustomizeEditor() {
     }
   };
 
-  const currentCustomization = viewCustomizations[selectedView];
+  const currentCustomization = React.useMemo(() => {
+    return viewCustomizations[selectedView].find(
+      (c) => c.id === selectedImageId
+    );
+  }, [selectedImageId, selectedView, viewCustomizations]);
 
   const handleScaleChange = (value: number[]) => {
+    if (!selectedImageId) return;
     const scale = value[0];
-    setViewCustomizations((prev) => ({
-      ...prev,
-      [selectedView]: {
-        ...(prev[selectedView] || {
-          blobUrl: null,
-          file: null,
-          x: 0.5,
-          y: 0.5,
-          scale: 1,
-          rotation: 0,
-        }),
-        scale,
-      },
-    }));
+
+    setViewCustomizations((prev) => {
+      const newCustomizations = prev[selectedView].map((cust) =>
+        cust.id === selectedImageId ? { ...cust, scale } : cust
+      );
+      return {
+        ...prev,
+        [selectedView]: newCustomizations,
+      };
+    });
   };
 
   // Update canvas size when container resizes
@@ -654,15 +668,20 @@ function CustomizeEditor() {
   }, [selectedView, designAreas]);
 
   // Konva Image Component
-  const EditableImage: React.FC<{ view: ProductView; canvasWidth: number; canvasHeight: number }> = ({ view, canvasWidth, canvasHeight }) => {
-    const customization = viewCustomizations[view];
+  const EditableImage: React.FC<{ 
+    customization: ViewCustomization;
+    canvasWidth: number; 
+    canvasHeight: number; 
+    isSelected: boolean;
+    onSelect: () => void;
+    onChange: (newAttrs: Partial<ViewCustomization>) => void;
+  }> = ({ customization, canvasWidth, canvasHeight, isSelected, onSelect, onChange }) => {
     const [image, setImage] = React.useState<HTMLImageElement | null>(null);
     const imageRef = React.useRef<any>(null);
     const transformerRef = React.useRef<any>(null);
-    const isSelected = selectedImageId === `${view}-image`;
 
     React.useEffect(() => {
-      if (!customization?.blobUrl) {
+      if (!customization.blobUrl) {
         setImage(null);
         return;
       }
@@ -672,7 +691,13 @@ function CustomizeEditor() {
       img.src = customization.blobUrl;
       img.onload = () => setImage(img);
       img.onerror = () => setImage(null);
-    }, [customization?.blobUrl]);
+      
+      return () => {
+        // Cleanup if the component unmounts or blobUrl changes
+        img.onload = null;
+        img.onerror = null;
+      };
+    }, [customization.blobUrl]);
 
     React.useEffect(() => {
       if (isSelected && transformerRef.current && imageRef.current) {
@@ -683,14 +708,7 @@ function CustomizeEditor() {
       }
     }, [isSelected, image]);
 
-    // Auto-select image when it's first added
-    React.useEffect(() => {
-      if (customization?.blobUrl && image && !isSelected && view === selectedView) {
-        setSelectedImageId(`${view}-image`);
-      }
-    }, [customization?.blobUrl, image, view, selectedView]);
-
-    if (!customization?.blobUrl || !image) return null;
+    if (!customization.blobUrl || !image) return null;
 
     // Use actual canvas dimensions - design area is the full canvas now
     const areaWidth = canvasWidth;
@@ -719,11 +737,11 @@ function CustomizeEditor() {
           draggable
           onClick={(e) => {
             e.cancelBubble = true;
-            setSelectedImageId(`${view}-image`);
+            onSelect();
           }}
           onTap={(e) => {
             e.cancelBubble = true;
-            setSelectedImageId(`${view}-image`);
+            onSelect();
           }}
           offsetX={image.width / 2}
           offsetY={image.height / 2}
@@ -754,14 +772,7 @@ function CustomizeEditor() {
             const newX = node.x() / areaWidth;
             const newY = node.y() / areaHeight;
             
-            setViewCustomizations((prev) => ({
-              ...prev,
-              [view]: {
-                ...prev[view],
-                x: newX,
-                y: newY,
-              },
-            }));
+            onChange({ x: newX, y: newY });
           }}
           onTransform={(e) => {
             const node = e.target;
@@ -794,16 +805,12 @@ function CustomizeEditor() {
             const newX = node.x() / areaWidth;
             const newY = node.y() / areaHeight;
 
-            setViewCustomizations((prev) => ({
-              ...prev,
-              [view]: {
-                ...prev[view],
-                x: Math.max(0, Math.min(1, newX)),
-                y: Math.max(0, Math.min(1, newY)),
-                scale: scaleX,
-                rotation: rotation,
-              },
-            }));
+            onChange({
+              x: newX,
+              y: newY,
+              scale: scaleX,
+              rotation: rotation,
+            });
           }}
         />
         {isSelected && (
@@ -829,96 +836,7 @@ function CustomizeEditor() {
     );
   };
 
-  const startDrag = (
-    e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>
-  ) => {
-    if (!designAreaRef.current) return;
-    const rect = designAreaRef.current.getBoundingClientRect();
 
-    let clientX: number;
-    let clientY: number;
-
-    if ("touches" in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-
-    dragStateRef.current = {
-      startX: clientX,
-      startY: clientY,
-      initialX: currentCustomization?.x ?? 0.5,
-      initialY: currentCustomization?.y ?? 0.5,
-    };
-    setIsDragging(true);
-
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  React.useEffect(() => {
-    if (!isDragging) return;
-
-    const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (!designAreaRef.current || !dragStateRef.current) return;
-
-      const rect = designAreaRef.current.getBoundingClientRect();
-
-      let clientX: number;
-      let clientY: number;
-
-      if (e instanceof TouchEvent) {
-        if (e.touches.length === 0) return;
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else {
-        clientX = e.clientX;
-        clientY = e.clientY;
-      }
-
-      const dx = clientX - dragStateRef.current.startX;
-      const dy = clientY - dragStateRef.current.startY;
-
-      const newX =
-        dragStateRef.current.initialX + dx / rect.width;
-      const newY =
-        dragStateRef.current.initialY + dy / rect.height;
-
-      setViewCustomizations((prev) => ({
-        ...prev,
-        [selectedView]: {
-        ...(prev[selectedView] || {
-          blobUrl: null,
-          file: null,
-          x: 0.5,
-            y: 0.5,
-            scale: 1,
-          }),
-          x: Math.max(0, Math.min(1, newX)),
-          y: Math.max(0, Math.min(1, newY)),
-        },
-      }));
-    };
-
-    const stopDrag = () => {
-      setIsDragging(false);
-      dragStateRef.current = null;
-    };
-
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", stopDrag);
-    window.addEventListener("touchmove", handleMove, { passive: false });
-    window.addEventListener("touchend", stopDrag);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", stopDrag);
-      window.removeEventListener("touchmove", handleMove);
-      window.removeEventListener("touchend", stopDrag);
-    };
-  }, [isDragging, selectedView, currentCustomization]);
 
   const navItems = [
     { id: "products", label: "Products", icon: Shirt },
@@ -1169,7 +1087,7 @@ function CustomizeEditor() {
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">
                       Placed image
                     </p>
-                    {currentCustomization?.blobUrl && (
+                    {viewCustomizations[selectedView].length > 0 && (
                       <button
                         onClick={handleDeleteCurrentImage}
                         className="text-[11px] text-red-500 hover:underline"
@@ -1178,14 +1096,18 @@ function CustomizeEditor() {
                       </button>
                     )}
                   </div>
-                  {currentCustomization?.blobUrl ? (
+                  {currentCustomization ? (
                     <div className="relative h-24 w-full overflow-hidden rounded-md border border-dashed border-gray-200 bg-gray-50">
                       <Image
-                        src={currentCustomization.blobUrl}
+                        src={currentCustomization.blobUrl!}
                         alt="Current placement"
                         fill
                         className="object-contain"
                       />
+                    </div>
+                  ) : viewCustomizations[selectedView].length > 0 ? (
+                    <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
+                      Select an image on the canvas to edit it.
                     </div>
                   ) : (
                     <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
@@ -1332,7 +1254,27 @@ function CustomizeEditor() {
                     style={{ width: '100%', height: '100%' }}
                   >
                     <Layer>
-                      <EditableImage view={selectedView} canvasWidth={canvasSize.width} canvasHeight={canvasSize.height} />
+                      {viewCustomizations[selectedView].map((cust) => (
+                        <EditableImage
+                          key={cust.id}
+                          customization={cust}
+                          canvasWidth={canvasSize.width}
+                          canvasHeight={canvasSize.height}
+                          isSelected={selectedImageId === cust.id}
+                          onSelect={() => setSelectedImageId(cust.id)}
+                          onChange={(newAttrs) => {
+                            setViewCustomizations((prev) => {
+                              const newCustomizations = prev[selectedView].map((c) =>
+                                c.id === cust.id ? { ...c, ...newAttrs } : c
+                              );
+                              return {
+                                ...prev,
+                                [selectedView]: newCustomizations,
+                              };
+                            });
+                          }}
+                        />
+                      ))}
                     </Layer>
                   </Stage>
                 </div>

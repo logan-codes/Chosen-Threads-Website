@@ -3,22 +3,15 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import {
-  Undo2,
-  Redo2,
-  ShoppingCart,
-  Image as ImageIcon,
-  Shirt,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import jsPDF from "jspdf";
 import { Stage, Layer, Image as KonvaImage, Transformer } from "react-konva";
+import { Header } from "@/components/customizer/Header";
+import { LeftSidebar } from "@/components/customizer/LeftSidebar";
+import { RightSidebar } from "@/components/customizer/RightSidebar";
 
 type ProductView = "FRONT" | "BACK" | "RIGHT" | "LEFT";
 
@@ -66,7 +59,10 @@ type DesignArea = {
 };
 
 type ProductConfig = {
-  svgs: Record<ProductView, { d: string; stroke: string; strokeWidth: number }[]>;
+  svgs: Record<
+    ProductView,
+    { d: string; stroke: string; strokeWidth: number }[]
+  >;
   designAreas: Record<ProductView, DesignArea>;
 };
 
@@ -78,17 +74,16 @@ function CustomizeEditor() {
 
   const [selectedView, setSelectedView] = React.useState<ProductView>("FRONT");
   const [selectedColor, setSelectedColor] = React.useState(
-    colorParam || "white"
+    colorParam || "white",
   );
   const [selectedNavItem, setSelectedNavItem] = React.useState<string | null>(
-    null
+    null,
   );
   const [menuTop, setMenuTop] = React.useState<number>(0);
-  const buttonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
   const [availableColors, setAvailableColors] = React.useState<string[]>([]);
   const [products, setProducts] = React.useState<Product[]>([]);
   const [currentProduct, setCurrentProduct] = React.useState<Product | null>(
-    null
+    null,
   );
   const [productVariants, setProductVariants] = React.useState<
     Record<ProductView, ProductVariant | null>
@@ -99,11 +94,13 @@ function CustomizeEditor() {
     LEFT: null,
   });
   const [uploadedImages, setUploadedImages] = React.useState<ProductImage[]>(
-    []
+    [],
   );
   const [isUploading, setIsUploading] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState<File>();
-  const [selectedFilePreview, setSelectedFilePreview] = React.useState<string | null>(null);
+  const [selectedFilePreview, setSelectedFilePreview] = React.useState<
+    string | null
+  >(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
   const [viewCustomizations, setViewCustomizations] = React.useState<
     Record<ProductView, ViewCustomization[]>
@@ -113,7 +110,9 @@ function CustomizeEditor() {
     RIGHT: [],
     LEFT: [],
   });
-  const [selectedImageId, setSelectedImageId] = React.useState<string | null>(null);
+  const [selectedImageId, setSelectedImageId] = React.useState<string | null>(
+    null,
+  );
   const stageRefs = React.useRef<Record<ProductView, any>>({
     FRONT: null,
     BACK: null,
@@ -121,8 +120,12 @@ function CustomizeEditor() {
     LEFT: null,
   });
   const canvasContainerRef = React.useRef<HTMLDivElement | null>(null);
-  const [canvasSize, setCanvasSize] = React.useState({ width: 400, height: 300 });
-  const [productConfig, setProductConfig] = React.useState<ProductConfig | null>(null);
+  const [canvasSize, setCanvasSize] = React.useState({
+    width: 400,
+    height: 300,
+  });
+  const [productConfig, setProductConfig] =
+    React.useState<ProductConfig | null>(null);
   const [designAreas, setDesignAreas] = React.useState<
     Record<ProductView, DesignArea>
   >({
@@ -144,7 +147,7 @@ function CustomizeEditor() {
   React.useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch('/product-config.json');
+        const response = await fetch("/product-config.json");
         const config = await response.json();
         setProductConfig(config);
         setDesignAreas(config.designAreas); // Set initial design areas from config
@@ -177,9 +180,7 @@ function CustomizeEditor() {
       if (!productsError && productsData) {
         const typed = productsData as Product[];
         setProducts(typed);
-        const current = typed.find(
-          (p) => String(p.id) === String(productId)
-        );
+        const current = typed.find((p) => String(p.id) === String(productId));
         setCurrentProduct(current || null);
       } else if (productsError) {
         console.error("Supabase load Products error:", productsError.message);
@@ -218,7 +219,7 @@ function CustomizeEditor() {
       } else if (variantsError) {
         console.error(
           "Supabase load ProductVariants error:",
-          variantsError.message
+          variantsError.message,
         );
       }
 
@@ -234,7 +235,7 @@ function CustomizeEditor() {
       } else if (imagesError) {
         console.error(
           "Supabase load ProductImages error:",
-          imagesError.message
+          imagesError.message,
         );
       }
 
@@ -265,7 +266,7 @@ function CustomizeEditor() {
       } else if (designAreasError) {
         console.error(
           "Supabase load DesignAreas error:",
-          designAreasError.message
+          designAreasError.message,
         );
         // Use defaults already set in state
       }
@@ -288,7 +289,7 @@ function CustomizeEditor() {
     if (!file) return;
 
     setSelectedFile(file);
-    
+
     // Create blob URL for preview
     const blobUrl = URL.createObjectURL(file);
     setSelectedFilePreview(blobUrl);
@@ -301,7 +302,12 @@ function CustomizeEditor() {
     const img = new window.Image();
     img.src = selectedFilePreview;
     img.onload = () => {
-      const scale = getFitScale(img.width, img.height, canvasSize.width, canvasSize.height);
+      const scale = getFitScale(
+        img.width,
+        img.height,
+        canvasSize.width,
+        canvasSize.height,
+      );
       const newCustomization: ViewCustomization = {
         id: newImageId,
         blobUrl: selectedFilePreview,
@@ -346,7 +352,12 @@ function CustomizeEditor() {
     setSelectedImageId(null);
   };
 
-  const getFitScale = (imgWidth: number, imgHeight: number, canvasWidth: number, canvasHeight: number) => {
+  const getFitScale = (
+    imgWidth: number,
+    imgHeight: number,
+    canvasWidth: number,
+    canvasHeight: number,
+  ) => {
     const widthScale = canvasWidth / imgWidth;
     const heightScale = canvasHeight / imgHeight;
     return Math.min(widthScale, heightScale, 1); // Ensure it doesn't scale up beyond original size
@@ -362,7 +373,12 @@ function CustomizeEditor() {
       const img = new window.Image();
       img.src = blobUrl;
       img.onload = () => {
-        const scale = getFitScale(img.width, img.height, canvasSize.width, canvasSize.height);
+        const scale = getFitScale(
+          img.width,
+          img.height,
+          canvasSize.width,
+          canvasSize.height,
+        );
         const newCustomization: ViewCustomization = {
           id: newImageId,
           blobUrl: blobUrl,
@@ -450,7 +466,7 @@ function CustomizeEditor() {
         compositeCanvas.width = 400;
         compositeCanvas.height = 300;
         const ctx = compositeCanvas.getContext("2d");
-        
+
         if (ctx) {
           // Draw background
           ctx.fillStyle = "#f5f3f0";
@@ -458,14 +474,16 @@ function CustomizeEditor() {
 
           // Draw SVG (we'll use the SVG as background)
           const svgImg = new window.Image();
-          const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], { type: "image/svg+xml" });
+          const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
+            type: "image/svg+xml",
+          });
           const svgUrl = URL.createObjectURL(svgBlob);
-          
+
           await new Promise((resolve) => {
             svgImg.onload = () => {
               ctx.drawImage(svgImg, 0, 0, 400, 300);
               URL.revokeObjectURL(svgUrl);
-              
+
               // Draw Konva canvas overlay if exists
               if (canvasDataUrl) {
                 const konvaImg = new window.Image();
@@ -520,14 +538,14 @@ function CustomizeEditor() {
   };
 
   const renderShirtSVG = (view: ProductView, color: string): string => {
-    if (!productConfig) return '';
+    if (!productConfig) return "";
 
     const svgPaths = productConfig.svgs[view]
       .map(
         (p) =>
-          `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`
+          `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`,
       )
-      .join('');
+      .join("");
 
     return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
   };
@@ -539,7 +557,9 @@ function CustomizeEditor() {
       setIsGeneratingPDF(true);
 
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         router.push("/login?redirect=/customize?productId=" + productId);
         return;
@@ -548,7 +568,7 @@ function CustomizeEditor() {
       // Step 1: Upload remaining images (those with files but not yet uploaded)
       const uploadedImageUrls: string[] = [];
       const views: ProductView[] = ["FRONT", "BACK", "LEFT", "RIGHT"];
-      
+
       for (const view of views) {
         const customizations = viewCustomizations[view];
         for (const customization of customizations) {
@@ -564,17 +584,19 @@ function CustomizeEditor() {
               continue;
             }
 
-            const { data: { publicUrl } } = supabase.storage
-              .from("Chosen Threads")
-              .getPublicUrl(filePath);
+            const {
+              data: { publicUrl },
+            } = supabase.storage.from("Chosen Threads").getPublicUrl(filePath);
 
             uploadedImageUrls.push(publicUrl);
 
             // Update state with uploaded URL
             setViewCustomizations((prev) => ({
               ...prev,
-              [view]: prev[view].map((c) => 
-                c.id === customization.id ? { ...c, uploadedUrl: publicUrl } : c
+              [view]: prev[view].map((c) =>
+                c.id === customization.id
+                  ? { ...c, uploadedUrl: publicUrl }
+                  : c,
               ),
             }));
           } else if (customization?.uploadedUrl) {
@@ -640,7 +662,7 @@ function CustomizeEditor() {
 
   const currentCustomization = React.useMemo(() => {
     return viewCustomizations[selectedView].find(
-      (c) => c.id === selectedImageId
+      (c) => c.id === selectedImageId,
     );
   }, [selectedImageId, selectedView, viewCustomizations]);
 
@@ -650,7 +672,7 @@ function CustomizeEditor() {
 
     setViewCustomizations((prev) => {
       const newCustomizations = prev[selectedView].map((cust) =>
-        cust.id === selectedImageId ? { ...cust, scale } : cust
+        cust.id === selectedImageId ? { ...cust, scale } : cust,
       );
       return {
         ...prev,
@@ -669,19 +691,26 @@ function CustomizeEditor() {
     };
 
     updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    window.addEventListener("resize", updateCanvasSize);
+    return () => window.removeEventListener("resize", updateCanvasSize);
   }, [selectedView, designAreas]);
 
   // Konva Image Component
-  const EditableImage: React.FC<{ 
+  const EditableImage: React.FC<{
     customization: ViewCustomization;
-    canvasWidth: number; 
-    canvasHeight: number; 
+    canvasWidth: number;
+    canvasHeight: number;
     isSelected: boolean;
     onSelect: () => void;
     onChange: (newAttrs: Partial<ViewCustomization>) => void;
-  }> = ({ customization, canvasWidth, canvasHeight, isSelected, onSelect, onChange }) => {
+  }> = ({
+    customization,
+    canvasWidth,
+    canvasHeight,
+    isSelected,
+    onSelect,
+    onChange,
+  }) => {
     const [image, setImage] = React.useState<HTMLImageElement | null>(null);
     const imageRef = React.useRef<any>(null);
     const transformerRef = React.useRef<any>(null);
@@ -697,7 +726,7 @@ function CustomizeEditor() {
       img.src = customization.blobUrl;
       img.onload = () => setImage(img);
       img.onerror = () => setImage(null);
-      
+
       return () => {
         // Cleanup if the component unmounts or blobUrl changes
         img.onload = null;
@@ -768,8 +797,10 @@ function CustomizeEditor() {
             if (box.y < 0) newY -= box.y;
 
             // Bottom-right corner
-            if (box.x + box.width > stageWidth) newX -= (box.x + box.width - stageWidth);
-            if (box.y + box.height > stageHeight) newY -= (box.y + box.height - stageHeight);
+            if (box.x + box.width > stageWidth)
+              newX -= box.x + box.width - stageWidth;
+            if (box.y + box.height > stageHeight)
+              newY -= box.y + box.height - stageHeight;
 
             node.position({ x: newX, y: newY });
           }}
@@ -777,7 +808,7 @@ function CustomizeEditor() {
             const node = e.target;
             const newX = node.x() / areaWidth;
             const newY = node.y() / areaHeight;
-            
+
             onChange({ x: newX, y: newY });
           }}
           onTransform={(e) => {
@@ -797,15 +828,17 @@ function CustomizeEditor() {
             if (box.y < 0) newY -= box.y;
 
             // Bottom-right corner
-            if (box.x + box.width > stageWidth) newX -= (box.x + box.width - stageWidth);
-            if (box.y + box.height > stageHeight) newY -= (box.y + box.height - stageHeight);
+            if (box.x + box.width > stageWidth)
+              newX -= box.x + box.width - stageWidth;
+            if (box.y + box.height > stageHeight)
+              newY -= box.y + box.height - stageHeight;
 
             node.position({ x: newX, y: newY });
           }}
           onTransformEnd={() => {
             const node = imageRef.current;
             if (!node) return;
-            
+
             const scaleX = node.scaleX();
             const rotation = node.rotation();
             const newX = node.x() / areaWidth;
@@ -842,27 +875,16 @@ function CustomizeEditor() {
     );
   };
 
-
-
-  const navItems = [
-    { id: "products", label: "Products", icon: Shirt },
-    { id: "image", label: "Image", icon: ImageIcon },
-    { id: "order", label: "Order", icon: ShoppingCart },
-  ];
-
   const productViews: ProductView[] = ["FRONT", "BACK", "RIGHT", "LEFT"];
-
-  const actionButtons = [
-    { id: "undo", label: "Undo", icon: Undo2 },
-    { id: "redo", label: "Redo", icon: Redo2 },
-    
-  ];
 
   const colorsToRender = availableColors.length
     ? availableColors
     : ["white", "#111827", "#f97316", "#16a34a", "#1d4ed8"];
 
-  const handleNavItemClick = (itemId: string, buttonElement: HTMLButtonElement | null) => {
+  const handleNavItemClick = (
+    itemId: string,
+    buttonElement: HTMLButtonElement | null,
+  ) => {
     if (selectedNavItem === itemId) {
       setSelectedNavItem(null);
       return;
@@ -870,7 +892,9 @@ function CustomizeEditor() {
 
     if (buttonElement) {
       const rect = buttonElement.getBoundingClientRect();
-      const sidebarRect = buttonElement.closest('aside')?.getBoundingClientRect();
+      const sidebarRect = buttonElement
+        .closest("aside")
+        ?.getBoundingClientRect();
       if (sidebarRect) {
         // Calculate center of button relative to sidebar
         const buttonCenterY = rect.top + rect.height / 2 - sidebarRect.top;
@@ -885,335 +909,39 @@ function CustomizeEditor() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f5f3f0]">
-      {/* Left Sidebar */}
-      <div className="relative flex">
-      <aside className="w-64 bg-[#f5f3f0] border-r border-[#e8e5e0] flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-[#e8e5e0]">
-          <Link href="/">
-          <Image src="/logo.jpg" alt="Chosen Threads Logo" width={100} height={100} />
-          </Link>
-        </div>
-
-        {/* Navigation Items */}
-        <nav className="flex-1 py-4 px-2 overflow-y-auto">
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = selectedNavItem === item.id;
-              return (
-                <li key={item.id}>
-                  <button
-                    ref={(el) => { buttonRefs.current[item.id] = el; }}
-                    onClick={(e) => handleNavItemClick(item.id, e.currentTarget)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors",
-                      isActive
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-600 hover:bg-white/50"
-                    )}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-sm font-medium">
-                        {item.label}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-      </aside>
-
-      {/* Flyout menu (opens to the right of the sidebar buttons) */}
-      {selectedNavItem && (
-        <div 
-          className="absolute left-full w-80 bg-white border-r border-[#e8e5e0] shadow-xl overflow-y-auto z-50"
-          style={{
-            top: `80px`, // Position below the header
-            maxHeight: 'calc(100vh - 100px)', // Adjust height to fit
-          }}
-        >
-          <div className="p-4">
-            {selectedNavItem === "products" && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                  Product
-                </h3>
-                {currentProduct ? (
-                  <div className="flex items-center gap-3 mb-3">
-                    {currentProduct.image && (
-                      <div className="relative h-10 w-10 overflow-hidden rounded-md bg-gray-100">
-                        <Image
-                          src={currentProduct.image}
-                          alt={currentProduct.name}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {currentProduct.name}
-                      </div>
-                      <div className="text-[11px] uppercase tracking-wide text-gray-400">
-                        {currentProduct.category}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 mb-3">
-                    Loading product details...
-                  </p>
-                )}
-
-                {products.length > 1 && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                      Switch product
-                    </p>
-                    <div className="max-h-56 overflow-y-auto space-y-1">
-                      {products.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => handleProductChange(p.id)}
-                          className={cn(
-                            "w-full flex items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-gray-50",
-                            currentProduct && currentProduct.id === p.id
-                              ? "bg-gray-100 font-semibold"
-                              : "text-gray-600"
-                          )}
-                        >
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-[10px] font-semibold">
-                            #{p.id}
-                          </span>
-                          <span className="truncate">{p.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-2">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Colors
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {colorsToRender.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => handleColorSelect(color)}
-                        className={cn(
-                          "h-8 w-8 rounded-full border-2 border-transparent ring-2 ring-transparent transition-all",
-                          selectedColor === color &&
-                            "ring-gray-900 ring-offset-2 ring-offset-white"
-                        )}
-                        style={{ backgroundColor: color }}
-                        aria-label={`Select color ${color}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedNavItem === "order" && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                  Order
-                </h3>
-                <div className="space-y-3">
-                  <p className="text-sm text-gray-700">
-                    Review your customizations and place your order.
-                  </p>
-                  <Button
-                    onClick={handleOrder}
-                    disabled={isGeneratingPDF}
-                    className="w-full bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                  >
-                    {isGeneratingPDF ? "Processing..." : "Place Order"}
-                  </Button>
-                  {isGeneratingPDF && (
-                    <p className="text-xs text-gray-500 text-center">
-                      Uploading images, generating PDF...
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {selectedNavItem === "image" && (
-              <div className="space-y-4 h-full overflow-y-auto">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                  Artwork
-                </h3>
-                <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Choose image
-                  </label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                  />
-                  <p className="text-[11px] text-gray-400">
-                    PNG or JPG, up to 5MB.
-                  </p>
-                  
-                  {selectedFilePreview && (
-                    <div className="space-y-2">
-                      <div className="relative h-24 w-full overflow-hidden rounded-md border border-dashed border-gray-200 bg-gray-50">
-                        <Image
-                          src={selectedFilePreview}
-                          alt="Selected file preview"
-                          fill
-                          className="object-contain"
-                        />
-                      </div>
-                      <Button
-                        onClick={handleAddImageToCanvas}
-                        disabled={isUploading}
-                        className="w-full bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50"
-                      >
-                        {isUploading ? "Adding..." : "Add to Canvas"}
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {isUploading && !selectedFilePreview && (
-                    <p className="text-[11px] text-gray-500">
-                      Uploading image...
-                    </p>
-                  )}
-                </div>
-
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                      Placed image
-                    </p>
-                    {viewCustomizations[selectedView].length > 0 && (
-                      <button
-                        onClick={handleDeleteCurrentImage}
-                        className="text-[11px] text-red-500 hover:underline"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  {currentCustomization ? (
-                    <div className="relative h-24 w-full overflow-hidden rounded-md border border-dashed border-gray-200 bg-gray-50">
-                      <Image
-                        src={currentCustomization.blobUrl!}
-                        alt="Current placement"
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                  ) : viewCustomizations[selectedView].length > 0 ? (
-                    <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
-                      Select an image on the canvas to edit it.
-                    </div>
-                  ) : (
-                    <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
-                      No image placed yet.
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-3">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Scale
-                  </p>
-                  <Slider
-                    min={0.5}
-                    max={2}
-                    step={0.05}
-                    value={[currentCustomization?.scale ?? 1]}
-                    onValueChange={handleScaleChange}
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-2">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Previous uploads
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto">
-                    {uploadedImages.length === 0 && (
-                      <p className="col-span-3 text-[11px] text-gray-400">
-                        No previous images yet.
-                      </p>
-                    )}
-                    {uploadedImages.map((img) => (
-                      <button
-                        key={img.id}
-                        onClick={() => handleSelectExistingImage(img)}
-                        className="relative h-16 w-full overflow-hidden rounded-md border border-gray-200 bg-gray-50 hover:border-gray-400 hover:border-orange-400 transition-colors"
-                        title={`Click to place in ${selectedView.toLowerCase()} view`}
-                      >
-                        <Image
-                          src={img.url}
-                          alt="Uploaded artwork"
-                          fill
-                          className="object-contain"
-                        />
-                        {img.view !== selectedView && (
-                          <div className="absolute top-0 right-0 bg-gray-800/70 text-white text-[8px] px-1 py-0.5 rounded-bl">
-                            {img.view}
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      </div>
+      <LeftSidebar
+        selectedNavItem={selectedNavItem}
+        onNavItemClick={handleNavItemClick}
+        menuTop={menuTop}
+        currentProduct={currentProduct}
+        products={products}
+        onProductChange={handleProductChange}
+        availableColors={availableColors}
+        selectedColor={selectedColor}
+        onColorSelect={handleColorSelect}
+        onOrder={handleOrder}
+        onFileSelect={handleFileSelect}
+        selectedFilePreview={selectedFilePreview}
+        onAddImageToCanvas={handleAddImageToCanvas}
+        isUploading={isUploading}
+        viewCustomizations={viewCustomizations}
+        selectedView={selectedView}
+        onDeleteCurrentImage={handleDeleteCurrentImage}
+        currentCustomization={currentCustomization}
+        onScaleChange={handleScaleChange}
+        uploadedImages={uploadedImages}
+        onSelectExistingImage={handleSelectExistingImage}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
-        {/* Top Bar */}
-        <header className="h-20 bg-white border-b border-[#e8e5e0] flex items-center justify-between px-6">
-          {/* Action Buttons */}
-          <div className="flex items-center gap-6">
-            {actionButtons.map((btn) => {
-              const Icon = btn.icon;
-              return (
-                <button
-                  key={btn.id}
-                  className="flex flex-col items-center gap-1 hover:opacity-70 transition-opacity"
-                >
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-gray-700" />
-                  </div>
-                  <span className="text-[10px] font-medium text-gray-600 uppercase tracking-wide">
-                    {btn.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Main Buttons */}
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              className="bg-gray-800 text-white hover:bg-gray-700 rounded-lg px-6 py-2 text-sm font-semibold"
-            >
-              Tutorials
-            </Button>
-            <Button
-              onClick={handleOrder}
-              disabled={isGeneratingPDF}
-              className="bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-6 py-2 text-sm font-semibold disabled:opacity-50"
-            >
-              {isGeneratingPDF ? "Generating PDF..." : "Order"}
-            </Button>
-          </div>
-        </header>
+        <Header
+          onOrder={handleOrder}
+          onTutorial={() => {
+            // TODO: Implement tutorial functionality
+            console.log("Tutorial clicked");
+          }}
+        />
 
         {/* Central Display Area */}
         <main className="flex-1 flex items-center justify-center bg-[#f5f3f0] p-8 overflow-auto">
@@ -1243,7 +971,9 @@ function CustomizeEditor() {
                   <Stage
                     width={canvasSize.width}
                     height={canvasSize.height}
-                    ref={(ref) => { stageRefs.current[selectedView] = ref; }}
+                    ref={(ref) => {
+                      stageRefs.current[selectedView] = ref;
+                    }}
                     onMouseDown={(e) => {
                       const clickedOnEmpty = e.target === e.target.getStage();
                       if (clickedOnEmpty) {
@@ -1256,7 +986,7 @@ function CustomizeEditor() {
                         setSelectedImageId(null);
                       }
                     }}
-                    style={{ width: '100%', height: '100%' }}
+                    style={{ width: "100%", height: "100%" }}
                   >
                     <Layer>
                       {viewCustomizations[selectedView].map((cust) => (
@@ -1269,8 +999,9 @@ function CustomizeEditor() {
                           onSelect={() => setSelectedImageId(cust.id)}
                           onChange={(newAttrs) => {
                             setViewCustomizations((prev) => {
-                              const newCustomizations = prev[selectedView].map((c) =>
-                                c.id === cust.id ? { ...c, ...newAttrs } : c
+                              const newCustomizations = prev[selectedView].map(
+                                (c) =>
+                                  c.id === cust.id ? { ...c, ...newAttrs } : c,
                               );
                               return {
                                 ...prev,
@@ -1289,58 +1020,27 @@ function CustomizeEditor() {
         </main>
       </div>
 
-      {/* Right Sidebar */}
-      <aside className="w-64 bg-white border-l border-[#e8e5e0] flex flex-col items-center py-6 px-4 align-middle ">
-        {/* Product View Thumbnails */}
-        <div className="space-y-4 my-auto">
-          {productViews.map((view) => {
-            const isSelected = selectedView === view;
-            return (
-              <button
-                key={view}
-                onClick={() => setSelectedView(view)}
-                className={cn(
-                  "flex flex-col items-center gap-2 transition-all",
-                  isSelected && "scale-105"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-20 h-20 rounded-full border-2 overflow-hidden bg-gray-100 flex items-center justify-center",
-                    isSelected
-                      ? "border-blue-500 shadow-lg"
-                      : "border-gray-300"
-                  )}
-                >
-                  {/* Mini t-shirt preview */}
-                  <div
-                    className="relative h-14 w-14"
-                    dangerouslySetInnerHTML={{
-                      __html: renderShirtSVG(view, selectedColor),
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-700">
-                  {view}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
+      <RightSidebar
+        productViews={productViews}
+        selectedView={selectedView}
+        onSelectView={setSelectedView}
+        renderShirtSVG={renderShirtSVG}
+        selectedColor={selectedColor}
+      />
     </div>
   );
 }
 
 export default function CustomizePage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen w-screen items-center justify-center bg-[#f5f3f0]">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-[#f5f3f0]">
+          <div className="text-gray-600">Loading...</div>
+        </div>
+      }
+    >
       <CustomizeEditor />
     </Suspense>
   );
 }
-

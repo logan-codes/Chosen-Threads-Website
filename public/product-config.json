@@ -82,7 +82,7 @@
   "designAreas": {
     "FRONT": { "x": 0.25, "y": 0.3, "width": 0.5, "height": 0.5 },
     "BACK": { "x": 0.25, "y": 0.3, "width": 0.5, "height": 0.5 },
-    "RIGHT": { "x": 0.5, "y": 0.3, "width": 0.35, "height": 0.3 },
-    "LEFT": { "x": 0.15, "y": 0.3, "width": 0.35, "height": 0.3 }
+    "RIGHT": { "x": 0.15, "y": 0.3, "width": 0.35, "height": 0.3 },
+    "LEFT": { "x": 0.5, "y": 0.3, "width": 0.35, "height": 0.3 }
   }
 }

@@ -8,8 +8,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import jsPDF from "jspdf";
+import JSZip from 'jszip';
 import { Stage, Layer, Image as KonvaImage, Transformer } from "react-konva";
 import { Header } from "@/components/customizer/Header";
+import Tutorial from '@/components/Tutorial';
 import { LeftSidebar } from "@/components/customizer/LeftSidebar";
 import { RightSidebar } from "@/components/customizer/RightSidebar";
 
@@ -101,7 +103,21 @@ function CustomizeEditor() {
   const [selectedFilePreview, setSelectedFilePreview] = React.useState<
     string | null
   >(null);
-  const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
+    const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
+
+  const resetCustomizer = () => {
+    setSelectedView("FRONT");
+    setSelectedColor(colorParam || (availableColors.length > 0 ? availableColors[0] : "white"));
+    setViewCustomizations({
+      FRONT: [],
+      BACK: [],
+      RIGHT: [],
+      LEFT: [],
+    });
+    setSelectedImageId(null);
+    setSelectedFile(undefined);
+    setSelectedFilePreview(null);
+  };
   const [viewCustomizations, setViewCustomizations] = React.useState<
     Record<ProductView, ViewCustomization[]>
   >({
@@ -124,6 +140,7 @@ function CustomizeEditor() {
     width: 400,
     height: 300,
   });
+  const [isTutorialOpen, setIsTutorialOpen] = React.useState(false);
   const [productConfig, setProductConfig] =
     React.useState<ProductConfig | null>(null);
   const [designAreas, setDesignAreas] = React.useState<
@@ -404,7 +421,7 @@ function CustomizeEditor() {
     }
   };
 
-  const generatePDF = async (): Promise<string | null> => {
+    const generatePDF = async (): Promise<Blob | null> => {
     if (!productId || !currentProduct) return null;
 
     try {
@@ -508,29 +525,7 @@ function CustomizeEditor() {
 
       document.body.removeChild(container);
 
-      // Save PDF to blob
-      const pdfBlob = pdf.output("blob");
-
-      // Upload PDF to Supabase Storage
-      const pdfFileName = `order-${productId}-${Date.now()}.pdf`;
-      const { error: uploadError } = await supabase.storage
-        .from("Chosen Threads")
-        .upload(`orders/${pdfFileName}`, pdfBlob, {
-          contentType: "application/pdf",
-        });
-
-      if (uploadError) {
-        console.error("PDF upload error:", uploadError);
-        return null;
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage
-        .from("Chosen Threads")
-        .getPublicUrl(`orders/${pdfFileName}`);
-
-      return publicUrl;
+      return pdf.output("blob");
     } catch (error) {
       console.error("PDF generation error:", error);
       return null;
@@ -556,102 +551,38 @@ function CustomizeEditor() {
     try {
       setIsGeneratingPDF(true);
 
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login?redirect=/customize?productId=" + productId);
-        return;
-      }
-
-      // Step 1: Upload remaining images (those with files but not yet uploaded)
-      const uploadedImageUrls: string[] = [];
-      const views: ProductView[] = ["FRONT", "BACK", "LEFT", "RIGHT"];
-
-      for (const view of views) {
-        const customizations = viewCustomizations[view];
-        for (const customization of customizations) {
-          if (customization?.file && !customization.uploadedUrl) {
-            // Upload the file
-            const filePath = `${productId}/${view}/${Date.now()}-${customization.file.name}`;
-            const { error: uploadError } = await supabase.storage
-              .from("Chosen Threads")
-              .upload(filePath, customization.file);
-
-            if (uploadError) {
-              console.error("Upload error:", uploadError);
-              continue;
-            }
-
-            const {
-              data: { publicUrl },
-            } = supabase.storage.from("Chosen Threads").getPublicUrl(filePath);
-
-            uploadedImageUrls.push(publicUrl);
-
-            // Update state with uploaded URL
-            setViewCustomizations((prev) => ({
-              ...prev,
-              [view]: prev[view].map((c) =>
-                c.id === customization.id
-                  ? { ...c, uploadedUrl: publicUrl }
-                  : c,
-              ),
-            }));
-          } else if (customization?.uploadedUrl) {
-            uploadedImageUrls.push(customization.uploadedUrl);
-          }
-        }
-      }
-
-      // Step 2: Capture canvas for each view and generate PDF
-      const pdfUrl = await generatePDF();
-      if (!pdfUrl) {
+      const pdfBlob = await generatePDF();
+      if (!pdfBlob) {
         alert("Failed to generate PDF. Please try again.");
-        setIsGeneratingPDF(false);
         return;
       }
 
-      // Step 3: Save metadata
-      const orderData = {
-        user_id: user.id,
-        product_id: Number(productId),
-        color: selectedColor,
-        pdf_url: pdfUrl,
-        customization_images: uploadedImageUrls,
-        view_customizations: viewCustomizations,
-        status: "pending",
-      };
+      const zip = new JSZip();
+      zip.file(`design-${productId}.pdf`, pdfBlob);
 
-      // Try to insert into Orders table first, fallback to Cart
-      const { data: orderInsert, error: orderError } = await supabase
-        .from("Orders")
-        .insert(orderData)
-        .select()
-        .single();
+      const imageFiles: File[] = [];
+      Object.values(viewCustomizations).forEach(customizations => {
+        customizations.forEach(cust => {
+          if (cust.file && !imageFiles.some(f => f.name === cust.file!.name)) {
+            imageFiles.push(cust.file);
+          }
+        });
+      });
 
-      if (orderError) {
-        // Fallback to Cart table
-        const { data: cartInsert, error: cartError } = await supabase
-          .from("Cart")
-          .insert(orderData)
-          .select()
-          .single();
+      imageFiles.forEach(file => {
+        zip.file(file.name, file);
+      });
 
-        if (cartError) {
-          console.error("Failed to create order/cart:", cartError);
-          alert("Failed to add to cart. Please try again.");
-          setIsGeneratingPDF(false);
-          return;
-        }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = `chosenthreads-design-${productId}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-        alert("Added to cart successfully!");
-        router.push("/checkout");
-      } else {
-        alert("Order placed successfully!");
-        router.push("/checkout");
-      }
+      resetCustomizer();
+
     } catch (error) {
       console.error("Order error:", error);
       alert("An error occurred. Please try again.");
@@ -909,6 +840,7 @@ function CustomizeEditor() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f5f3f0]">
+      <Tutorial isOpen={isTutorialOpen} setIsOpen={setIsTutorialOpen} />
       <LeftSidebar
         selectedNavItem={selectedNavItem}
         onNavItemClick={handleNavItemClick}
@@ -937,10 +869,7 @@ function CustomizeEditor() {
       <div className="flex-1 flex flex-col">
         <Header
           onOrder={handleOrder}
-          onTutorial={() => {
-            // TODO: Implement tutorial functionality
-            console.log("Tutorial clicked");
-          }}
+          onTutorial={() => setIsTutorialOpen(true)}
         />
 
         {/* Central Display Area */}

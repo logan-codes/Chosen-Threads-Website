@@ -320,11 +320,15 @@ function CustomizeEditor() {
     const img = new window.Image();
     img.src = selectedFilePreview;
     img.onload = () => {
+      const area = designAreas[selectedView];
+      const targetWidth = area.width * canvasSize.width;
+      const targetHeight = area.height * canvasSize.height;
+
       const scale = getFitScale(
         img.width,
         img.height,
-        canvasSize.width,
-        canvasSize.height,
+        targetWidth,
+        targetHeight,
       );
       const newCustomization: ViewCustomization = {
         id: newImageId,
@@ -501,9 +505,19 @@ function CustomizeEditor() {
                   const areaW = area.width * canvasWidth;
                   const areaH = area.height * canvasHeight;
 
-                  // Adjust scale based on the difference between on-screen canvas and PDF canvas
-                  const scaleFactor = canvasWidth / canvasSize.width;
-                  const finalScale = cust.scale * scaleFactor;
+                  // To get the correct final scale, we must consider the user's modifications
+                  // relative to the initial auto-scale.
+                  const onScreenAreaW = area.width * canvasSize.width;
+                  const onScreenAreaH = area.height * canvasSize.height;
+                  const initialOnScreenScale = getFitScale(img.width, img.height, onScreenAreaW, onScreenAreaH);
+
+                  const userScaleModifier = cust.scale / initialOnScreenScale;
+
+                  const pdfAreaW = area.width * canvasWidth;
+                  const pdfAreaH = area.height * canvasHeight;
+                  const initialPdfScale = getFitScale(img.width, img.height, pdfAreaW, pdfAreaH);
+
+                  const finalScale = initialPdfScale * userScaleModifier;
 
                   ctx.save();
                   ctx.translate(areaX + cust.x * areaW, areaY + cust.y * areaH);
@@ -533,7 +547,7 @@ function CustomizeEditor() {
       console.error("PDF generation error:", error);
       return null;
     }
-  }, [productId, currentProduct, selectedColor, renderShirtSVG, viewCustomizations, designAreas, canvasSize]);
+  }, [productId, currentProduct, selectedColor, renderShirtSVG, viewCustomizations, designAreas, canvasSize, getFitScale]);
 
 
   const handleOrder = React.useCallback(async () => {

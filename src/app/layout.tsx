@@ -4,6 +4,7 @@ import "./globals.css";
 import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
+import { Toaster } from 'sonner';
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -50,6 +51,7 @@ export default function RootLayout({
         />
         {children}
         <VisualEditsMessenger />
+        <Toaster richColors />
       </body>
     </html>
   );

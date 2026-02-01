@@ -9,6 +9,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import jsPDF from "jspdf";
 import JSZip from 'jszip';
+import { toast } from 'sonner';
 import { Stage, Layer, Image as KonvaImage, Transformer } from "react-konva";
 import { Header } from "@/components/customizer/Header";
 import Tutorial from '@/components/Tutorial';
@@ -105,7 +106,7 @@ function CustomizeEditor() {
   >(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
 
-  const resetCustomizer = () => {
+  const resetCustomizer = React.useCallback(() => {
     setSelectedView("FRONT");
     setSelectedColor(colorParam || (availableColors.length > 0 ? availableColors[0] : "white"));
     setViewCustomizations({
@@ -117,7 +118,7 @@ function CustomizeEditor() {
     setSelectedImageId(null);
     setSelectedFile(undefined);
     setSelectedFilePreview(null);
-  };
+  }, [availableColors, colorParam]);
   const [viewCustomizations, setViewCustomizations] = React.useState<
     Record<ProductView, ViewCustomization[]>
   >({
@@ -421,8 +422,21 @@ function CustomizeEditor() {
     }
   };
 
-    const generatePDF = async (): Promise<Blob | null> => {
-    if (!productId || !currentProduct) return null;
+  const renderShirtSVG = React.useCallback((view: ProductView, color: string): string => {
+    if (!productConfig) return "";
+
+    const svgPaths = productConfig.svgs[view]
+      .map(
+        (p) =>
+          `<path d=\"${p.d}\" fill=\"${color}\" stroke=\"${p.stroke}\" stroke-width=\"${p.strokeWidth}\"/>`,
+      )
+      .join("");
+
+    return `<svg viewBox=\"0 0 300 400\" xmlns=\"http://www.w3.org/2000/svg\" style=\"width: 100%; height: 100%;\">${svgPaths}</svg>`;
+  }, [productConfig]);
+
+  const generatePDF = React.useCallback(async (): Promise<Blob | null> => {
+    // if (!productId || !currentProduct) return null;
 
     try {
       const pdf = new jsPDF("p", "mm", "a4");
@@ -430,9 +444,8 @@ function CustomizeEditor() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 10;
       const contentWidth = pageWidth - 2 * margin;
-      const contentHeight = pageHeight - 2 * margin;
       const viewWidth = contentWidth / 2 - 5;
-      const viewHeight = contentHeight / 2 - 5;
+      const viewHeight = (viewWidth * 4) / 3; // Maintain 4:3 aspect ratio
 
       const views: ProductView[] = ["FRONT", "BACK", "LEFT", "RIGHT"];
       const positions = [
@@ -442,121 +455,105 @@ function CustomizeEditor() {
         [margin + viewWidth + 10, margin + viewHeight + 10],
       ];
 
-      // Create a temporary container to render views
-      const container = document.createElement("div");
-      container.style.position = "absolute";
-      container.style.left = "-9999px";
-      container.style.width = "800px";
-      container.style.height = "600px";
-      container.style.background = "#f5f3f0";
-      document.body.appendChild(container);
-
       for (let i = 0; i < views.length; i++) {
         const view = views[i];
         const [x, y] = positions[i];
 
-        // Create a canvas for this view
-        const viewContainer = document.createElement("div");
-        viewContainer.style.width = "400px";
-        viewContainer.style.height = "300px";
-        viewContainer.style.background = "#f5f3f0";
-        viewContainer.style.position = "relative";
-        container.appendChild(viewContainer);
-
-        // Render SVG for this view
-        const svgContainer = document.createElement("div");
-        svgContainer.innerHTML = renderShirtSVG(view, selectedColor);
-        viewContainer.appendChild(svgContainer.firstChild as Node);
-
-        // Capture Konva canvas if it exists
-        const stage = stageRefs.current[view];
-        let canvasDataUrl = "";
-
-        if (stage) {
-          // Get the canvas from Konva stage
-          const dataURL = stage.toDataURL({ pixelRatio: 2 });
-          canvasDataUrl = dataURL;
-        }
+        const customizations = viewCustomizations[view];
 
         // Create a composite image with SVG background and Konva canvas overlay
         const compositeCanvas = document.createElement("canvas");
-        compositeCanvas.width = 400;
-        compositeCanvas.height = 300;
+        const onScreenAspectRatio = canvasSize.width / canvasSize.height;
+        const canvasWidth = 400;
+        const canvasHeight = canvasWidth / onScreenAspectRatio;
+        compositeCanvas.width = canvasWidth;
+        compositeCanvas.height = canvasHeight;
         const ctx = compositeCanvas.getContext("2d");
 
         if (ctx) {
-          // Draw background
-          ctx.fillStyle = "#f5f3f0";
-          ctx.fillRect(0, 0, 400, 300);
-
-          // Draw SVG (we'll use the SVG as background)
+          // Draw SVG background
           const svgImg = new window.Image();
           const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
             type: "image/svg+xml",
           });
           const svgUrl = URL.createObjectURL(svgBlob);
 
-          await new Promise((resolve) => {
+          await new Promise<void>((resolve) => {
             svgImg.onload = () => {
-              ctx.drawImage(svgImg, 0, 0, 400, 300);
+              ctx.drawImage(svgImg, 0, 0, canvasWidth, canvasHeight);
               URL.revokeObjectURL(svgUrl);
-
-              // Draw Konva canvas overlay if exists
-              if (canvasDataUrl) {
-                const konvaImg = new window.Image();
-                konvaImg.onload = () => {
-                  ctx.drawImage(konvaImg, 0, 0, 400, 300);
-                  resolve(null);
-                };
-                konvaImg.src = canvasDataUrl;
-              } else {
-                resolve(null);
-              }
+              resolve();
             };
             svgImg.src = svgUrl;
           });
 
+          // Draw customizations on top
+          for (const cust of customizations) {
+            if (cust.blobUrl) {
+              const img = new window.Image();
+              img.crossOrigin = "anonymous";
+
+              await new Promise<void>((resolve) => {
+                img.onload = () => {
+                  const area = designAreas[view];
+                  const areaX = area.x * canvasWidth;
+                  const areaY = area.y * canvasHeight;
+                  const areaW = area.width * canvasWidth;
+                  const areaH = area.height * canvasHeight;
+
+                  // Adjust scale based on the difference between on-screen canvas and PDF canvas
+                  const scaleFactor = canvasWidth / canvasSize.width;
+                  const finalScale = cust.scale * scaleFactor;
+
+                  ctx.save();
+                  ctx.translate(areaX + cust.x * areaW, areaY + cust.y * areaH);
+                  ctx.rotate((cust.rotation || 0) * (Math.PI / 180));
+                  ctx.scale(finalScale, finalScale);
+                  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                  ctx.restore();
+                  resolve();
+                };
+                const blobUrl = cust.blobUrl;
+                if (blobUrl) {
+                  img.src = blobUrl;
+                } else {
+                  resolve(); // Resolve the promise if no blobUrl to avoid hanging
+                }
+              });
+            }
+          }
+
           const imgData = compositeCanvas.toDataURL("image/png");
           pdf.addImage(imgData, "PNG", x, y, viewWidth, viewHeight);
         }
-
-        container.removeChild(viewContainer);
       }
-
-      document.body.removeChild(container);
 
       return pdf.output("blob");
     } catch (error) {
       console.error("PDF generation error:", error);
       return null;
     }
-  };
+  }, [productId, currentProduct, selectedColor, renderShirtSVG, viewCustomizations, designAreas, canvasSize]);
 
-  const renderShirtSVG = (view: ProductView, color: string): string => {
-    if (!productConfig) return "";
 
-    const svgPaths = productConfig.svgs[view]
-      .map(
-        (p) =>
-          `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`,
-      )
-      .join("");
+  const handleOrder = React.useCallback(async () => {
+    // if (!productId || !currentProduct) return;
 
-    return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
-  };
-
-  const handleOrder = async () => {
-    if (!productId || !currentProduct) return;
+    const orderToast = toast.loading('Starting your order...');
 
     try {
       setIsGeneratingPDF(true);
 
+      toast.loading('Generating PDF...', { id: orderToast });
       const pdfBlob = await generatePDF();
+
       if (!pdfBlob) {
-        alert("Failed to generate PDF. Please try again.");
+        toast.error('Failed to generate PDF. Please try again.', { id: orderToast });
         return;
       }
+      toast.success('PDF generated successfully!', { id: orderToast });
 
+      toast.loading('Creating zip file...', { id: orderToast });
       const zip = new JSZip();
       zip.file(`design-${productId}.pdf`, pdfBlob);
 
@@ -570,10 +567,13 @@ function CustomizeEditor() {
       });
 
       imageFiles.forEach(file => {
-        zip.file(file.name, file);
+        zip.file(`images/${file.name}`, file);
       });
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
+      toast.success('Zip file created!', { id: orderToast });
+
+      toast.loading('Preparing download...', { id: orderToast });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(zipBlob);
       link.download = `chosenthreads-design-${productId}.zip`;
@@ -581,15 +581,17 @@ function CustomizeEditor() {
       link.click();
       document.body.removeChild(link);
 
+      toast.success('Download started! Resetting page.', { id: orderToast, duration: 4000 });
+
       resetCustomizer();
 
     } catch (error) {
       console.error("Order error:", error);
-      alert("An error occurred. Please try again.");
+      toast.error('An error occurred. Please try again.', { id: orderToast });
     } finally {
       setIsGeneratingPDF(false);
     }
-  };
+  }, [productId, currentProduct, viewCustomizations, generatePDF, resetCustomizer]);
 
   const currentCustomization = React.useMemo(() => {
     return viewCustomizations[selectedView].find(

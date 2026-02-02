@@ -507,17 +507,10 @@ function CustomizeEditor() {
 
                   // To get the correct final scale, we must consider the user's modifications
                   // relative to the initial auto-scale.
-                  const onScreenAreaW = area.width * canvasSize.width;
-                  const onScreenAreaH = area.height * canvasSize.height;
-                  const initialOnScreenScale = getFitScale(img.width, img.height, onScreenAreaW, onScreenAreaH);
-
-                  const userScaleModifier = cust.scale / initialOnScreenScale;
-
-                  const pdfAreaW = area.width * canvasWidth;
-                  const pdfAreaH = area.height * canvasHeight;
-                  const initialPdfScale = getFitScale(img.width, img.height, pdfAreaW, pdfAreaH);
-
-                  const finalScale = initialPdfScale * userScaleModifier;
+                  // The cust.scale is the definitive scale factor applied on the screen.
+                  // We can use it directly, as the drawing context is scaled relative to the
+                  // PDF canvas, just as the on-screen canvas is.
+                  const finalScale = cust.scale;
 
                   ctx.save();
                   ctx.translate(areaX + cust.x * areaW, areaY + cust.y * areaH);

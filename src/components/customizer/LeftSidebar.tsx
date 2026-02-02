@@ -271,18 +271,6 @@ export function LeftSidebar({
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-3">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Scale
-                  </p>
-                  <Slider
-                    min={0.5}
-                    max={2}
-                    step={0.05}
-                    value={[currentCustomization?.scale ?? 1]}
-                    onValueChange={onScaleChange}
-                  />
-                </div>
               </div>
             )}
           </div>

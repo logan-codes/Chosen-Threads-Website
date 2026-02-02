@@ -806,12 +806,25 @@ function CustomizeEditor() {
           }}
           onTransformEnd={() => {
             const node = imageRef.current;
-            if (!node) return;
+            if (!node || !image) return;
 
-            const scaleX = node.scaleX();
+            let scaleX = node.scaleX();
             const rotation = node.rotation();
             const newX = node.x() / areaWidth;
             const newY = node.y() / areaHeight;
+
+            const imageWidth = image.width * scaleX;
+            const imageHeight = image.height * scaleX;
+
+            const maxScaleX = areaWidth / image.width;
+            const maxScaleY = areaHeight / image.height;
+            const maxScale = Math.min(maxScaleX, maxScaleY);
+
+            if (scaleX > maxScale) {
+              scaleX = maxScale;
+              node.scaleX(scaleX);
+              node.scaleY(scaleX);
+            }
 
             onChange({
               x: newX,

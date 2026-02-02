@@ -109,24 +109,53 @@ function CustomizeEditor() {
   const resetCustomizer = React.useCallback(() => {
     setSelectedView("FRONT");
     setSelectedColor(colorParam || (availableColors.length > 0 ? availableColors[0] : "white"));
-    setViewCustomizations({
+    const initialCustomizations = {
       FRONT: [],
       BACK: [],
       RIGHT: [],
       LEFT: [],
-    });
+    };
+    setHistory([initialCustomizations]);
+    setHistoryIndex(0);
     setSelectedImageId(null);
     setSelectedFile(undefined);
     setSelectedFilePreview(null);
   }, [availableColors, colorParam]);
-  const [viewCustomizations, setViewCustomizations] = React.useState<
-    Record<ProductView, ViewCustomization[]>
-  >({
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+    }
+  };
+  const [history, setHistory] = React.useState<Record<ProductView, ViewCustomization[]>[]>(() => [{
     FRONT: [],
     BACK: [],
     RIGHT: [],
     LEFT: [],
-  });
+  }]);
+  const [historyIndex, setHistoryIndex] = React.useState(0);
+  const viewCustomizations = history[historyIndex];
+
+  const setViewCustomizations = (updater:  React.SetStateAction<Record<ProductView, ViewCustomization[]>>) => {
+    setHistory(prevHistory => {
+      const newHistory = prevHistory.slice(0, historyIndex + 1);
+      const currentCustomizations = prevHistory[historyIndex];
+      const newCustomizations =
+        typeof updater === 'function'
+          ? (updater as (prevState: Record<ProductView, ViewCustomization[]>) => Record<ProductView, ViewCustomization[]>)(currentCustomizations)
+          : updater;
+
+      newHistory.push(newCustomizations);
+      setHistoryIndex(newHistory.length - 1);
+      return newHistory;
+    });
+  };
   const [selectedImageId, setSelectedImageId] = React.useState<string | null>(
     null,
   );
@@ -879,6 +908,10 @@ function CustomizeEditor() {
         <Header
           onOrder={handleOrder}
           onTutorial={() => setIsTutorialOpen(true)}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={historyIndex > 0}
+          canRedo={historyIndex < history.length - 1}
         />
 
         {/* Central Display Area */}

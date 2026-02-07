@@ -2,6 +2,7 @@
 
 import React, { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+
+type Order = {
+  id: number;
+  created_at: string;
+  status: string;
+  product_id: number;
+  file_url: string;
+  contact_info: any;
+  total_price: number;
+};
 
 function CheckoutContent() {
   const router = useRouter();
@@ -19,6 +33,7 @@ function CheckoutContent() {
   const [email, setEmail] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [orderCompleted, setOrderCompleted] = React.useState(false);
+  const [orders, setOrders] = React.useState<Order[]>([]);
 
   const [formData, setFormData] = React.useState({
     fullName: "",
@@ -34,8 +49,20 @@ function CheckoutContent() {
         // If not logged in, redirect to login then back to checkout
         const redirectPath = orderId ? `/checkout?orderId=${orderId}` : '/checkout';
         router.replace(`/login?redirect=${encodeURIComponent(redirectPath)}`);
+        return;
       } else {
         setEmail(session.user.email ?? null);
+        
+        // Fetch user's orders
+        const { data: ordersData, error } = await supabase
+          .from('Order')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false });
+          
+        if (ordersData) {
+          setOrders(ordersData as any);
+        }
       }
       setLoading(false);
     };
@@ -162,10 +189,65 @@ function CheckoutContent() {
               </form>
             </>
           ) : (
-            <div className="text-center py-8">
-               <h2 className="font-semibold mb-2">Your cart is currently empty</h2>
-               <p className="text-sm text-zinc-600 mb-6">Start customizing a product to place an order.</p>
-               <Button onClick={() => router.push("/shop")} variant="outline">Browse Shop</Button>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold text-xl">My Orders</h2>
+                <Button onClick={() => router.push("/shop")} variant="outline" size="sm">
+                  New Order
+                </Button>
+              </div>
+
+              {orders.length === 0 ? (
+                <div className="text-center py-12 bg-white rounded-lg border border-dashed">
+                  <h3 className="font-semibold text-lg mb-2">No orders yet</h3>
+                  <p className="text-zinc-500 mb-6">Create your first custom design to get started.</p>
+                  <Button onClick={() => router.push("/shop")}>Start Customizing</Button>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {orders.map((order) => (
+                    <Card key={order.id} className="overflow-hidden bg-white border-zinc-200 shadow-sm">
+                      <CardHeader className="bg-zinc-50/50 py-4 border-b border-zinc-100">
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col gap-1">
+                            <CardTitle className="text-base">Order #{order.id}</CardTitle>
+                            <CardDescription>
+                              Placed on {new Date(order.created_at).toLocaleDateString()}
+                            </CardDescription>
+                          </div>
+                          <Badge variant={order.status === 'completed' ? 'default' : 'secondary'} className="capitalize">
+                            {order.status.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="py-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-zinc-600">
+                             {order.product_id ? `Product ID: ${order.product_id}` : 'Custom Design'}
+                          </div>
+                          <div className="flex gap-3 items-center">
+                             {order.file_url && (
+                               <a 
+                                 href={order.file_url} 
+                                 target="_blank" 
+                                 rel="noopener noreferrer"
+                                 className="text-sm text-primary hover:underline font-medium"
+                               >
+                                 View Design
+                               </a>
+                             )}
+                             {order.status === 'pending_confirmation' && (
+                               <Link href={`/checkout?orderId=${order.id}`}>
+                                 <Button size="sm" className="h-8">Complete Order</Button>
+                               </Link>
+                             )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -184,7 +184,7 @@ export function LeftSidebar({
                   </p>
                   <Button
                     onClick={onOrder}
-                    className="w-full bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                    className="w-full bg-black text-white hover:bg-zinc-800 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
                   >
                     Place Order
                   </Button>
@@ -223,7 +223,7 @@ export function LeftSidebar({
                       <Button
                         onClick={onAddImageToCanvas}
                         disabled={isUploading}
-                        className="w-full bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50"
+                        className="w-full bg-black text-white hover:bg-zinc-800 rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50"
                       >
                         {isUploading ? "Adding..." : "Add to Canvas"}
                       </Button>

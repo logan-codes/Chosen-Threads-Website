@@ -46,13 +46,13 @@ export function Header({ onOrder, onTutorial, onUndo, onRedo, canUndo, canRedo }
         <Button
           variant="outline"
           onClick={onTutorial}
-          className="bg-gray-800 text-white hover:bg-gray-700 rounded-lg px-6 py-2 text-sm font-semibold"
+          className="border-primary/20 text-primary hover:bg-primary hover:text-white rounded-lg px-6 py-2 text-sm font-semibold"
         >
           Tutorials
         </Button>
         <Button
           onClick={onOrder}
-          className="bg-orange-500 text-white hover:bg-orange-600 rounded-lg px-6 py-2 text-sm font-semibold disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-6 py-2 text-sm font-semibold disabled:opacity-50"
         >
           Order
         </Button>

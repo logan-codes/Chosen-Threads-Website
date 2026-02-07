@@ -97,7 +97,7 @@ React.useEffect(() => {
               and the power of individual customization.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link href="/customize">
+              <Link href="/customize?productId=1&color=white">
                 <Button
                   size="lg"
                   className="bg-primary text-white hover:bg-foreground transition-all px-12 py-8 text-xs font-bold uppercase tracking-widest rounded-sm shadow-xl shadow-primary/20"
@@ -318,7 +318,7 @@ React.useEffect(() => {
                   </li>
                 ))}
               </ul>
-              <Link href="/customize">
+              <Link href="/customize?productId=1&color=white">
                 <Button
                   size="lg"
                   className="bg-primary text-white px-12 py-8 rounded-sm text-xs font-bold uppercase tracking-widest hover:scale-105 transition-transform"

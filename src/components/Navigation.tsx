@@ -206,7 +206,7 @@ export default function Navigation({ searchQuery, setSearchQuery }: Props) {
 
                 <NavigationMenuItem>
                   <NavigationMenuLink
-                    href="/customize"
+                    href="/customize?productId=1&color=white"
                     className="uppercase tracking-widest"
                   >
                     Customize

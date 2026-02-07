@@ -3,13 +3,19 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { cn } from "@/lib/utils";
-import Image from "next/image";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import jsPDF from "jspdf";
 import JSZip from 'jszip';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Stage, Layer, Image as KonvaImage, Transformer } from "react-konva";
 import { Header } from "@/components/customizer/Header";
 import Tutorial from '@/components/Tutorial';
@@ -99,12 +105,15 @@ function CustomizeEditor() {
   const [uploadedImages, setUploadedImages] = React.useState<ProductImage[]>(
     [],
   );
-  const [isUploading, setIsUploading] = React.useState(false);
+  
   const [selectedFile, setSelectedFile] = React.useState<File>();
   const [selectedFilePreview, setSelectedFilePreview] = React.useState<
     string | null
   >(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
+    const [isOrderConfirmationOpen, setIsOrderConfirmationOpen] = React.useState(false);
+    const [orderPdfUrl, setOrderPdfUrl] = React.useState<string | null>(null);
+    const [currentOrderId, setCurrentOrderId] = React.useState<number | null>(null);
 
   const resetCustomizer = React.useCallback(() => {
     setSelectedView("FRONT");
@@ -183,13 +192,6 @@ function CustomizeEditor() {
   });
 
   const designAreaRef = React.useRef<HTMLDivElement | null>(null);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const dragStateRef = React.useRef<{
-    startX: number;
-    startY: number;
-    initialX: number;
-    initialY: number;
-  } | null>(null);
 
   React.useEffect(() => {
     const fetchConfig = async () => {
@@ -469,7 +471,7 @@ function CustomizeEditor() {
   }, [productConfig]);
 
   const generatePDF = React.useCallback(async (): Promise<Blob | null> => {
-    // if (!productId || !currentProduct) return null;
+    
 
     try {
       const pdf = new jsPDF("p", "mm", "a4");
@@ -573,7 +575,12 @@ function CustomizeEditor() {
 
 
   const handleOrder = React.useCallback(async () => {
-    // if (!productId || !currentProduct) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error("Please log in to place an order.");
+      router.push("/login?redirect=/customize");
+      return;
+    }
 
     const orderToast = toast.loading('Starting your order...');
 
@@ -587,7 +594,9 @@ function CustomizeEditor() {
         toast.error('Failed to generate PDF. Please try again.', { id: orderToast });
         return;
       }
-      toast.success('PDF generated successfully!', { id: orderToast });
+      
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      setOrderPdfUrl(pdfUrl);
 
       toast.loading('Creating zip file...', { id: orderToast });
       const zip = new JSZip();
@@ -607,27 +616,58 @@ function CustomizeEditor() {
       });
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      toast.success('Zip file created!', { id: orderToast });
+      
+      // Upload to Supabase Storage
+      toast.loading('Uploading order files...', { id: orderToast });
+      const fileName = `order-${Date.now()}-${productId}.zip`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('orders')
+        .upload(fileName, zipBlob);
 
-      toast.loading('Preparing download...', { id: orderToast });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(zipBlob);
-      link.download = `chosenthreads-design-${productId}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
-      toast.success('Download started! Resetting page.', { id: orderToast, duration: 4000 });
+      const { data: publicUrlData } = supabase.storage.from('orders').getPublicUrl(fileName);
+      const fileUrl = publicUrlData.publicUrl;
 
-      resetCustomizer();
+      // Create Order Entry
+      toast.loading('Creating order...', { id: orderToast });
+      const { data: orderData, error: orderError } = await supabase
+        .from('Order')
+        .insert({
+          user_id: session.user.id,
+          product_id: productId ? Number(productId) : null,
+          file_url: fileUrl,
+          status: 'pending_confirmation',
+          total_price: 0 // Placeholder or calculate based on product
+        })
+        .select()
+        .single();
 
-    } catch (error) {
+      if (orderError) {
+        throw new Error(`Order creation failed: ${orderError.message}`);
+      }
+
+      setCurrentOrderId(orderData.id);
+      setIsOrderConfirmationOpen(true);
+
+      toast.success('Order created! Please confirm PDF.', { id: orderToast });
+
+    } catch (error: any) {
       console.error("Order error:", error);
-      toast.error('An error occurred. Please try again.', { id: orderToast });
+      toast.error(error.message || 'An error occurred.', { id: orderToast });
     } finally {
       setIsGeneratingPDF(false);
     }
-  }, [productId, currentProduct, viewCustomizations, generatePDF, resetCustomizer]);
+  }, [productId, currentProduct, viewCustomizations, generatePDF, router]);
+
+  const handleConfirmOrder = () => {
+    setIsOrderConfirmationOpen(false);
+    if (currentOrderId) {
+      router.push(`/checkout?orderId=${currentOrderId}`);
+    }
+  };
 
   const currentCustomization = React.useMemo(() => {
     return viewCustomizations[selectedView].find(
@@ -906,7 +946,7 @@ function CustomizeEditor() {
         onFileSelect={handleFileSelect}
         selectedFilePreview={selectedFilePreview}
         onAddImageToCanvas={handleAddImageToCanvas}
-        isUploading={isUploading}
+        isUploading={false}
         viewCustomizations={viewCustomizations}
         selectedView={selectedView}
         onDeleteCurrentImage={handleDeleteCurrentImage}
@@ -1011,6 +1051,34 @@ function CustomizeEditor() {
         renderShirtSVG={renderShirtSVG}
         selectedColor={selectedColor}
       />
+
+      <Dialog open={isOrderConfirmationOpen} onOpenChange={setIsOrderConfirmationOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Order Confirmation</DialogTitle>
+            <DialogDescription>
+              Your design has been saved! Please review the PDF below before proceeding to checkout.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {orderPdfUrl && (
+              <iframe
+                src={orderPdfUrl}
+                className="w-full h-[400px] border rounded-md"
+                title="Design Preview"
+              />
+            )}
+          </div>
+          <DialogFooter>
+             <Button variant="outline" onClick={() => setIsOrderConfirmationOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmOrder}>
+              Proceed to Checkout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

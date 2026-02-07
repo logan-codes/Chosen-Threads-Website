@@ -69,6 +69,32 @@ function CheckoutContent() {
     checkSession();
   }, [router, orderId]);
 
+  const handleCancelOrder = async (orderId: number) => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    
+    try {
+      const { error } = await supabase
+        .from('Order')
+        .update({ status: 'cancelled' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      toast.success("Order cancelled successfully");
+      
+      // Refresh orders
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+      
+      // If we cancelled the currently selected order, redirect to checkout root
+      if (Number(searchParams.get("orderId")) === orderId) {
+        router.push('/checkout');
+      }
+    } catch (error: any) {
+      console.error("Error cancelling order:", error);
+      toast.error("Failed to cancel order");
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderId) return;
@@ -215,7 +241,11 @@ function CheckoutContent() {
                               Placed on {new Date(order.created_at).toLocaleDateString()}
                             </CardDescription>
                           </div>
-                          <Badge variant={order.status === 'completed' ? 'default' : 'secondary'} className="capitalize">
+                          <Badge variant={
+                            order.status === 'completed' ? 'default' : 
+                            order.status === 'cancelled' ? 'destructive' : 
+                            'secondary'
+                          } className="capitalize">
                             {order.status.replace(/_/g, ' ')}
                           </Badge>
                         </div>
@@ -237,9 +267,19 @@ function CheckoutContent() {
                                </a>
                              )}
                              {order.status === 'pending_confirmation' && (
-                               <Link href={`/checkout?orderId=${order.id}`}>
-                                 <Button size="sm" className="h-8">Complete Order</Button>
-                               </Link>
+                               <div className="flex gap-2">
+                                 <Button 
+                                   size="sm" 
+                                   variant="destructive" 
+                                   className="h-8"
+                                   onClick={() => handleCancelOrder(order.id)}
+                                 >
+                                   Cancel
+                                 </Button>
+                                 <Link href={`/checkout?orderId=${order.id}`}>
+                                   <Button size="sm" className="h-8">Complete Order</Button>
+                                 </Link>
+                               </div>
                              )}
                           </div>
                         </div>

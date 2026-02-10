@@ -229,7 +229,7 @@ React.useEffect(() => {
                               {product.rating}
                             </span>
                           </div>
-                          <h4 className="font-bold text-foreground text-lg mb-1 group-hover:text-primary transition-colors">
+                          <h4 className="font-bold text-foreground text-lg mb-1 group-hover:text-primary transition-colors cursor-pointer" onClick={() => window.location.href = `/shop/${product.id}`}>
                             {product.name}
                           </h4>
                           <p className="text-zinc-400 text-[10px] uppercase tracking-widest mb-4 font-bold">

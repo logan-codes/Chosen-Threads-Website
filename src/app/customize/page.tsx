@@ -85,6 +85,7 @@ function CustomizeEditor() {
   const [selectedColor, setSelectedColor] = React.useState(
     colorParam || "white",
   );
+
   const [selectedNavItem, setSelectedNavItem] = React.useState<string | null>(
     null,
   );
@@ -94,26 +95,20 @@ function CustomizeEditor() {
   const [currentProduct, setCurrentProduct] = React.useState<Product | null>(
     null,
   );
-  const [productVariants, setProductVariants] = React.useState<
-    Record<ProductView, ProductVariant | null>
-  >({
-    FRONT: null,
-    BACK: null,
-    RIGHT: null,
-    LEFT: null,
-  });
+  const [productVariants, setProductVariants] = React.useState<ProductVariant[]>([]);
+
   const [uploadedImages, setUploadedImages] = React.useState<ProductImage[]>(
     [],
   );
-  
+
   const [selectedFile, setSelectedFile] = React.useState<File>();
   const [selectedFilePreview, setSelectedFilePreview] = React.useState<
     string | null
   >(null);
-    const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
-    const [isOrderConfirmationOpen, setIsOrderConfirmationOpen] = React.useState(false);
-    const [orderPdfUrl, setOrderPdfUrl] = React.useState<string | null>(null);
-    const [currentOrderId, setCurrentOrderId] = React.useState<number | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
+  const [isOrderConfirmationOpen, setIsOrderConfirmationOpen] = React.useState(false);
+  const [orderPdfUrl, setOrderPdfUrl] = React.useState<string | null>(null);
+  const [currentOrderId, setCurrentOrderId] = React.useState<number | null>(null);
 
   const resetCustomizer = React.useCallback(() => {
     setSelectedView("FRONT");
@@ -151,7 +146,7 @@ function CustomizeEditor() {
   const [historyIndex, setHistoryIndex] = React.useState(0);
   const viewCustomizations = history[historyIndex];
 
-  const setViewCustomizations = (updater:  React.SetStateAction<Record<ProductView, ViewCustomization[]>>) => {
+  const setViewCustomizations = React.useCallback((updater: React.SetStateAction<Record<ProductView, ViewCustomization[]>>) => {
     setHistory(prevHistory => {
       const newHistory = prevHistory.slice(0, historyIndex + 1);
       const currentCustomizations = prevHistory[historyIndex];
@@ -160,11 +155,16 @@ function CustomizeEditor() {
           ? (updater as (prevState: Record<ProductView, ViewCustomization[]>) => Record<ProductView, ViewCustomization[]>)(currentCustomizations)
           : updater;
 
+      // Only add to history if there's actually a change
+      if (JSON.stringify(newCustomizations) === JSON.stringify(currentCustomizations)) {
+        return prevHistory;
+      }
+
       newHistory.push(newCustomizations);
       setHistoryIndex(newHistory.length - 1);
       return newHistory;
     });
-  };
+  }, [historyIndex]);
   const [selectedImageId, setSelectedImageId] = React.useState<string | null>(
     null,
   );
@@ -218,21 +218,26 @@ function CustomizeEditor() {
   // Load product variants (colors + per-view images) and available colors
   React.useEffect(() => {
     const loadProductData = async () => {
-      if (!productId) return;
+      if (!productId) {
+        console.log("No productId, skipping data load");
+        return;
+      }
 
       // Load product itself + all customizable products for switching
       const { data: productsData, error: productsError } = await supabase
         .from("Products")
-        .select("id,name,category,image,customizable")
+        .select("id,name,category,price,image,customizable,rating,tag")
         .eq("customizable", true);
 
-      if (!productsError && productsData) {
+      if (!productsError && productsData && productsData.length > 0) {
         const typed = productsData as Product[];
         setProducts(typed);
         const current = typed.find((p) => String(p.id) === String(productId));
         setCurrentProduct(current || null);
       } else if (productsError) {
         console.error("Supabase load Products error:", productsError.message);
+      } else if (!productsData || productsData.length === 0) {
+        console.warn("No customizable products found in database");
       }
 
       // Load per-view variants (colors + base images)
@@ -243,16 +248,8 @@ function CustomizeEditor() {
 
       if (!variantsError && variantsData) {
         const typed = variantsData as ProductVariant[];
-        const variantsMap: Record<ProductView, ProductVariant | null> = {
-          FRONT: null,
-          BACK: null,
-          RIGHT: null,
-          LEFT: null,
-        };
-        typed.forEach((v) => {
-          variantsMap[v.view] = v;
-        });
-        setProductVariants(variantsMap);
+        setProductVariants(typed);
+        console.log("Set productVariants to:", typed);
 
         const colorsSet = new Set<string>();
         typed.forEach((v) => {
@@ -270,6 +267,8 @@ function CustomizeEditor() {
           "Supabase load ProductVariants error:",
           variantsError.message,
         );
+        // Ensure productVariants remains an array on error
+        setProductVariants([]);
       }
 
       // Load previously uploaded images for this product (for all views)
@@ -322,7 +321,7 @@ function CustomizeEditor() {
     };
 
     loadProductData();
-  }, [productId, colorParam]);
+  }, [productId]);
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
@@ -458,17 +457,54 @@ function CustomizeEditor() {
   };
 
   const renderShirtSVG = React.useCallback((view: ProductView, color: string): string => {
-    if (!productConfig) return "";
+    try {
+      // 1. Try to find a specific variant image from DB
+      // Use productVariants state
+      const variantsToUse = productVariants;
+      
+      // Safety check - ensure we have valid variants
+      if (!Array.isArray(variantsToUse) || variantsToUse.length === 0) {
+        console.warn("No valid variants available, falling back to default SVG");
+        // Fallback to productConfig SVG (recolorable)
+        if (!productConfig) return "";
 
-    const svgPaths = productConfig.svgs[view]
-      .map(
-        (p) =>
-          `<path d=\"${p.d}\" fill=\"${color}\" stroke=\"${p.stroke}\" stroke-width=\"${p.strokeWidth}\"/>`,
-      )
-      .join("");
+        const svgPaths = productConfig.svgs[view]
+          .map(
+            (p) =>
+              `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`,
+          )
+          .join("");
 
-    return `<svg viewBox=\"0 0 300 400\" xmlns=\"http://www.w3.org/2000/svg\" style=\"width: 100%; height: 100%;\">${svgPaths}</svg>`;
-  }, [productConfig]);
+        return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
+      }
+
+      // Try to find variant - use optional chaining for safety
+      const variant = variantsToUse?.find?.(v => v.view === view && v.color === color);
+      if (variant?.image_url) {
+        // Return SVG wrapping the image
+        // We use preserveAspectRatio="none" or "xMidYMid meet" depending on needs.
+        // Since the container is 300x400 (or relative), we want to fill it.
+        return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+          <image href="${variant.image_url}" x="0" y="0" width="300" height="400" preserveAspectRatio="xMidYMid slice" />
+        </svg>`;
+      }
+
+      // 2. Fallback to productConfig SVG (recolorable)
+      if (!productConfig) return "";
+
+      const svgPaths = productConfig.svgs[view]
+        .map(
+          (p) =>
+            `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`,
+        )
+        .join("");
+
+      return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
+    } catch (error) {
+      console.error("Error in renderShirtSVG:", error);
+      return "";
+    }
+  }, [productConfig, productVariants]);
 
   const generatePDF = React.useCallback(async (): Promise<Blob | null> => {
     

@@ -1,25 +1,29 @@
 const isBrowser = typeof window !== 'undefined';
 
 // Dynamic import for DOMPurify to avoid server-side issues
+// @ts-ignore - Dynamic import to avoid type definition conflicts
 let DOMPurify: any = null;
 
 const loadDOMPurify = async () => {
   if (isBrowser && !DOMPurify) {
     try {
       const module = await import('isomorphic-dompurify');
+      // @ts-ignore - Dynamic import type handling
       DOMPurify = module.default || module;
       
       // Set up DOMPurify hooks only on browser side
-      DOMPurify.addHook('uponSanitizeAttribute', function(node: any, data: any) {
-        // Allow safe attributes
-        if (data.attrName === 'href' && data.attrValue.startsWith('data:')) {
-          const allowedDataTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
-          const isAllowedImageType = allowedDataTypes.some(type => data.attrValue.includes(type));
-          if (!isAllowedImageType) {
-            data.keepAttr = false;
+      if (DOMPurify) {
+        DOMPurify.addHook('uponSanitizeAttribute', function(node: any, data: any) {
+          // Allow safe attributes
+          if (data.attrName === 'href' && data.attrValue.startsWith('data:')) {
+            const allowedDataTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+            const isAllowedImageType = allowedDataTypes.some(type => data.attrValue.includes(type));
+            if (!isAllowedImageType) {
+              data.keepAttr = false;
+            }
           }
-        }
-      });
+        });
+      }
     } catch (error) {
       console.error('Failed to load DOMPurify:', error);
     }

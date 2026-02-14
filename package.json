@@ -55,7 +55,6 @@
         "@tsparticles/engine": "^3.8.1",
         "@tsparticles/react": "^3.0.0",
         "@tsparticles/slim": "^3.8.1",
-        "@types/dompurify": "^3.0.5",
         "@types/jszip": "^3.4.0",
         "atmn": "^0.0.28",
         "autumn-js": "^0.1.43",

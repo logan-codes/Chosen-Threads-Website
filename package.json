@@ -2,9 +2,13 @@
     "name": "app",
     "version": "0.1.0",
     "private": true,
+    "engines": {
+        "node": "22.x"
+    },
     "scripts": {
         "dev": "next dev ",
         "build": "next build",
+        "build:vercel": "NEXT_LINT_NO_ERRORS=true next build",
         "start": "next start",
         "lint": "next lint",
         "test": "jest",

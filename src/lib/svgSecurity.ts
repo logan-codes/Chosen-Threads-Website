@@ -1,4 +1,31 @@
-import DOMPurify from 'isomorphic-dompurify';
+const isBrowser = typeof window !== 'undefined';
+
+// Dynamic import for DOMPurify to avoid server-side issues
+let DOMPurify: any = null;
+
+const loadDOMPurify = async () => {
+  if (isBrowser && !DOMPurify) {
+    try {
+      const module = await import('isomorphic-dompurify');
+      DOMPurify = module.default || module;
+      
+      // Set up DOMPurify hooks only on browser side
+      DOMPurify.addHook('uponSanitizeAttribute', function(node: any, data: any) {
+        // Allow safe attributes
+        if (data.attrName === 'href' && data.attrValue.startsWith('data:')) {
+          const allowedDataTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+          const isAllowedImageType = allowedDataTypes.some(type => data.attrValue.includes(type));
+          if (!isAllowedImageType) {
+            data.keepAttr = false;
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to load DOMPurify:', error);
+    }
+  }
+  return DOMPurify;
+};
 
 // Configuration for DOMPurify to allow safe SVG elements
 const SVG_CONFIG = {
@@ -30,17 +57,86 @@ export class SecureSVGRenderer {
       return '';
     }
     
+    // On server side, do basic sanitization without DOMPurify
+    if (!isBrowser) {
+      return svgContent
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '')
+        .replace(/data:(?!image\/(png|jpeg|jpg|webp|svg\+xml))/gi, 'data: ')
+        .replace(/<iframe\b[^<]*>?/gi, '')
+        .replace(/<object\b[^<]*>?/gi, '')
+        .replace(/<embed\b[^<]*>?/gi, '');
+    }
+    
+    // Browser side: use DOMPurify with full configuration
+    // For synchronous use, we'll use basic sanitization first
+    // and enhance it when DOMPurify is available
     const preSanitized = svgContent
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/javascript:/gi, '')
       .replace(/on\w+\s*=/gi, '')
       .replace(/data:/gi, 'data: ');
     
-    return DOMPurify.sanitize(preSanitized, {
-      ...SVG_CONFIG,
-      RETURN_DOM: false,
-      RETURN_DOM_FRAGMENT: false
-    });
+    // Try to use DOMPurify if available (async loading)
+    if (DOMPurify) {
+      try {
+        return DOMPurify.sanitize(preSanitized, {
+          ...SVG_CONFIG,
+          RETURN_DOM: false,
+          RETURN_DOM_FRAGMENT: false
+        });
+      } catch (error) {
+        console.error('DOMPurify sanitization failed:', error);
+      }
+    }
+    
+    // Fallback to basic sanitization
+    return preSanitized;
+  }
+
+  /**
+   * Async version of sanitizeSVG that ensures DOMPurify is loaded
+   */
+  static async sanitizeSVGAsync(svgContent: string): Promise<string> {
+    if (!svgContent || typeof svgContent !== 'string') {
+      return '';
+    }
+    
+    // On server side, do basic sanitization without DOMPurify
+    if (!isBrowser) {
+      return svgContent
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+\s*=/gi, '')
+        .replace(/data:(?!image\/(png|jpeg|jpg|webp|svg\+xml))/gi, 'data: ')
+        .replace(/<iframe\b[^<]*>?/gi, '')
+        .replace(/<object\b[^<]*>?/gi, '')
+        .replace(/<embed\b[^<]*>?/gi, '');
+    }
+    
+    // Browser side: load DOMPurify and use it
+    const purify = await loadDOMPurify();
+    const preSanitized = svgContent
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+\s*=/gi, '')
+      .replace(/data:/gi, 'data: ');
+    
+    if (purify) {
+      try {
+        return purify.sanitize(preSanitized, {
+          ...SVG_CONFIG,
+          RETURN_DOM: false,
+          RETURN_DOM_FRAGMENT: false
+        });
+      } catch (error) {
+        console.error('DOMPurify sanitization failed:', error);
+      }
+    }
+    
+    // Fallback to basic sanitization
+    return preSanitized;
   }
 
   /**
@@ -72,6 +168,35 @@ export class SecureSVGRenderer {
   static sanitizeImageURL(url: string): string {
     if (!url) return '';
 
+    // On server side, do basic validation without URL parsing
+    if (!isBrowser) {
+      // Basic server-side validation
+      const cleanUrl = url
+        .replace(/[<>]/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/data:text\/html/gi, '')
+        .replace(/data:script/gi, '')
+        .trim()
+        .substring(0, 500);
+
+      // Allow http, https, and data URLs for images on server side
+      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+        return cleanUrl;
+      }
+      
+      // Allow data URLs for images on server side
+      if (cleanUrl.startsWith('data:')) {
+        const allowedDataTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+        const isAllowedImageType = allowedDataTypes.some(type => cleanUrl.includes(type));
+        if (isAllowedImageType) {
+          return cleanUrl;
+        }
+      }
+      
+      return '';
+    }
+
+    // Browser side: full validation with URL parsing
     try {
       // Parse the URL to validate it
       const parsedUrl = new URL(url, window.location.origin);
@@ -190,6 +315,25 @@ export class SecureSVGRenderer {
       return '';
     }
 
+    // On server side, do basic validation without URL parsing
+    if (!isBrowser) {
+      const cleanUrl = url
+        .replace(/[<>]/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/data:text\/html/gi, '')
+        .replace(/data:script/gi, '')
+        .trim()
+        .substring(0, 500);
+
+      // Only allow http, https protocols on server side
+      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+        return cleanUrl;
+      }
+      
+      return '';
+    }
+
+    // Browser side: full validation with URL parsing
     try {
       // Parse URL to validate it
       const parsedUrl = new URL(url, window.location.origin);

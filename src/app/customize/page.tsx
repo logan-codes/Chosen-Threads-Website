@@ -1,5 +1,5 @@
 "use client";
-
+export const dynamic = "force-dynamic";
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
@@ -336,9 +336,9 @@ function CustomizeEditor() {
         // Use defaults already set in state
       }
 
-      // Load configured views from API (same as admin interface)
+      // Load configured views from public API
       try {
-        const response = await fetch(`/api/admin/products/${productId}/views`);
+        const response = await fetch(`/api/products/${productId}`);
         if (response.ok) {
           const data = await response.json();
           if (data.configuredViews && data.configuredViews.length > 0) {

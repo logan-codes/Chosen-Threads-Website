@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, Filter, Package, DollarSign, Calendar, CheckCircle, Clock, XCircle, Truck } from "lucide-react";
+import { Search, Package, DollarSign, Calendar, CheckCircle, Clock, XCircle, Truck, Loader2 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,25 +11,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
+type OrderStatus = 'pending_confirmation' | 'confirmed' | 'in_production' | 'shipped' | 'delivered' | 'cancelled';
+
 type Order = {
   id: number;
   user_id: string;
   product_id: number;
-  status: 'pending' | 'processing' | 'shipped' | 'completed' | 'cancelled';
-  total: number;
+  status: OrderStatus;
+  total_price: number;
   created_at: string;
-  updated_at: string;
   product?: {
     name: string;
     image: string;
   };
 };
 
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending_confirmation: 'Pending Confirmation',
+  confirmed: 'Confirmed',
+  in_production: 'In Production',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled'
+};
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedStatus, setSelectedStatus] = React.useState("all");
+  const [selectedStatus, setSelectedStatus] = React.useState<string>("all");
 
   React.useEffect(() => {
     fetchOrders();
@@ -38,10 +48,10 @@ export default function AdminOrdersPage() {
   const fetchOrders = async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from("Orders")
+      .from("Order")
       .select(`
         *,
-        Products:product_id (
+        product:product_id (
           name,
           image
         )
@@ -57,16 +67,16 @@ export default function AdminOrdersPage() {
     setLoading(false);
   };
 
-  const updateOrderStatus = async (orderId: number, newStatus: Order['status']) => {
+  const updateOrderStatus = async (orderId: number, newStatus: OrderStatus) => {
     try {
       const { error } = await supabase
-        .from("Orders")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .from("Order")
+        .update({ status: newStatus })
         .eq("id", orderId);
 
       if (error) throw error;
       
-      toast.success(`Order status updated to ${newStatus}`);
+      toast.success(`Order status updated to ${STATUS_LABELS[newStatus]}`);
       fetchOrders();
     } catch (error) {
       toast.error("Failed to update order status");
@@ -80,34 +90,49 @@ export default function AdminOrdersPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const getStatusColor = (status: Order['status']) => {
+  const getStatusColor = (status: OrderStatus) => {
     switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'processing': return 'bg-blue-100 text-blue-800';
+      case 'pending_confirmation': return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'in_production': return 'bg-indigo-100 text-indigo-800';
       case 'shipped': return 'bg-purple-100 text-purple-800';
-      case 'completed': return 'bg-green-100 text-green-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getStatusIcon = (status: Order['status']) => {
+  const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
-      case 'pending': return <Clock className="w-4 h-4" />;
-      case 'processing': return <Package className="w-4 h-4" />;
+      case 'pending_confirmation': return <Clock className="w-4 h-4" />;
+      case 'confirmed': return <CheckCircle className="w-4 h-4" />;
+      case 'in_production': return <Loader2 className="w-4 h-4" />;
       case 'shipped': return <Truck className="w-4 h-4" />;
-      case 'completed': return <CheckCircle className="w-4 h-4" />;
+      case 'delivered': return <CheckCircle className="w-4 h-4" />;
       case 'cancelled': return <XCircle className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
   };
 
+  const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
+    const flow: Record<OrderStatus, OrderStatus | null> = {
+      pending_confirmation: 'confirmed',
+      confirmed: 'in_production',
+      in_production: 'shipped',
+      shipped: 'delivered',
+      delivered: null,
+      cancelled: null
+    };
+    return flow[currentStatus];
+  };
+
   const statusOptions = [
     { value: 'all', label: 'All Status' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'processing', label: 'Processing' },
+    { value: 'pending_confirmation', label: 'Pending Confirmation' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'in_production', label: 'In Production' },
     { value: 'shipped', label: 'Shipped' },
-    { value: 'completed', label: 'Completed' },
+    { value: 'delivered', label: 'Delivered' },
     { value: 'cancelled', label: 'Cancelled' }
   ];
 
@@ -140,18 +165,18 @@ export default function AdminOrdersPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">
-                {orders.filter(o => o.status === 'pending').length}
+                {orders.filter(o => o.status === 'pending_confirmation').length}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Processing</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">In Production</CardTitle>
+              <Loader2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {orders.filter(o => o.status === 'processing').length}
+              <div className="text-2xl font-bold text-indigo-600">
+                {orders.filter(o => o.status === 'in_production').length}
               </div>
             </CardContent>
           </Card>
@@ -173,7 +198,7 @@ export default function AdminOrdersPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${orders.reduce((sum, order) => sum + order.total, 0).toFixed(2)}
+                ${orders.reduce((sum, order) => sum + (order.total_price || 0), 0).toFixed(2)}
               </div>
             </CardContent>
           </Card>
@@ -250,7 +275,7 @@ export default function AdminOrdersPage() {
                           <Badge className={getStatusColor(order.status)}>
                             <div className="flex items-center space-x-1">
                               {getStatusIcon(order.status)}
-                              <span className="capitalize">{order.status}</span>
+                              <span className="capitalize">{STATUS_LABELS[order.status]}</span>
                             </div>
                           </Badge>
                         </div>
@@ -262,37 +287,21 @@ export default function AdminOrdersPage() {
                           </div>
                           <div className="flex items-center space-x-1">
                             <DollarSign className="w-4 h-4" />
-                            <span className="font-semibold">${order.total}</span>
+                            <span className="font-semibold">${order.total_price?.toFixed(2) || '0.00'}</span>
                           </div>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {order.status === 'pending' && (
+                      {getNextStatus(order.status) && (
                         <Button
                           size="sm"
-                          onClick={() => updateOrderStatus(order.id, 'processing')}
+                          onClick={() => updateOrderStatus(order.id, getNextStatus(order.status)!)}
                         >
-                          Process
+                          Mark as {STATUS_LABELS[getNextStatus(order.status)!]}
                         </Button>
                       )}
-                      {order.status === 'processing' && (
-                        <Button
-                          size="sm"
-                          onClick={() => updateOrderStatus(order.id, 'shipped')}
-                        >
-                          Ship
-                        </Button>
-                      )}
-                      {order.status === 'shipped' && (
-                        <Button
-                          size="sm"
-                          onClick={() => updateOrderStatus(order.id, 'completed')}
-                        >
-                          Complete
-                        </Button>
-                      )}
-                      {(order.status === 'pending' || order.status === 'processing') && (
+                      {order.status !== 'cancelled' && order.status !== 'delivered' && (
                         <Button
                           variant="outline"
                           size="sm"

@@ -32,7 +32,7 @@ type Review = {
 };
 
 interface ProductPageProps {
-  params: { productId: string };
+  params: Promise<{ productId: string }>;
 }
 
 async function getProduct(productId: string): Promise<Product | null> {
@@ -113,7 +113,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           
           {/* Reviews Section */}
           <div className="border-t border-zinc-100 pt-12">
-            <ReviewSection reviews={reviews} productId={params.productId} />
+            <ReviewSection reviews={reviews} productId={productId} />
           </div>
         </div>
       </section>

@@ -7,6 +7,8 @@ import { supabase } from "@/lib/supabaseClient";
 import jsPDF from "jspdf";
 import JSZip from 'jszip';
 import { toast } from 'sonner';
+import { SecureFileValidator } from "@/lib/fileSecurity";
+import { SecureSVGRenderer, isValidColor } from "@/lib/svgSecurity";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +32,9 @@ type Product = {
   category: string;
   image: string;
   customizable: boolean;
+  rating: number; // This might be the price field, or check if price exists
+  tag?: string;
+  price?: number; // Add optional price field
 };
 
 type ProductVariant = {
@@ -44,7 +49,7 @@ type ProductImage = {
   id: number;
   product_id: number;
   view: ProductView;
-  url: string;
+  image_url: string;
   created_at: string;
 };
 
@@ -110,21 +115,28 @@ function CustomizeEditor() {
   const [orderPdfUrl, setOrderPdfUrl] = React.useState<string | null>(null);
   const [currentOrderId, setCurrentOrderId] = React.useState<number | null>(null);
 
+  // Configured views state and defaults
+  const [configuredViews, setConfiguredViews] = React.useState<ProductView[]>(["FRONT", "BACK", "RIGHT", "LEFT"]);
+  const defaultViews: ProductView[] = ["FRONT", "BACK", "RIGHT", "LEFT"];
+
   const resetCustomizer = React.useCallback(() => {
-    setSelectedView("FRONT");
+    const firstView = configuredViews.length > 0 ? configuredViews[0] : "FRONT";
+    setSelectedView(firstView as ProductView);
     setSelectedColor(colorParam || (availableColors.length > 0 ? availableColors[0] : "white"));
-    const initialCustomizations = {
-      FRONT: [],
-      BACK: [],
-      RIGHT: [],
-      LEFT: [],
-    };
+    
+    // Initialize customizations for all configured views
+    const initialCustomizations: Record<ProductView, ViewCustomization[]> = {} as Record<ProductView, ViewCustomization[]>;
+    const viewsToInitialize = configuredViews.length > 0 ? configuredViews : defaultViews;
+    viewsToInitialize.forEach(view => {
+      initialCustomizations[view] = [];
+    });
+    
     setHistory([initialCustomizations]);
     setHistoryIndex(0);
     setSelectedImageId(null);
     setSelectedFile(undefined);
     setSelectedFilePreview(null);
-  }, [availableColors, colorParam]);
+  }, [availableColors, colorParam, configuredViews, defaultViews]);
 
   const handleUndo = () => {
     if (historyIndex > 0) {
@@ -182,6 +194,8 @@ function CustomizeEditor() {
   const [isTutorialOpen, setIsTutorialOpen] = React.useState(false);
   const [productConfig, setProductConfig] =
     React.useState<ProductConfig | null>(null);
+  const [productImageUrl, setProductImageUrl] = React.useState<string | null>(null);
+  const [isConfigLoading, setIsConfigLoading] = React.useState(true);
   const [designAreas, setDesignAreas] = React.useState<
     Record<ProductView, DesignArea>
   >({
@@ -192,6 +206,7 @@ function CustomizeEditor() {
   });
 
   const designAreaRef = React.useRef<HTMLDivElement | null>(null);
+  const svgContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     const fetchConfig = async () => {
@@ -199,9 +214,11 @@ function CustomizeEditor() {
         const response = await fetch("/product-config.json");
         const config = await response.json();
         setProductConfig(config);
-        setDesignAreas(config.designAreas); // Set initial design areas from config
+        setDesignAreas(config.designAreas);
       } catch (error) {
         console.error("Failed to load product config:", error);
+      } finally {
+        setIsConfigLoading(false);
       }
     };
 
@@ -274,7 +291,7 @@ function CustomizeEditor() {
       // Load previously uploaded images for this product (for all views)
       const { data: imagesData, error: imagesError } = await supabase
         .from("ProductImages")
-        .select("id,product_id,view,url,created_at")
+        .select("id,product_id,view,image_url,created_at")
         .eq("product_id", Number(productId))
         .order("created_at", { ascending: false });
 
@@ -318,6 +335,27 @@ function CustomizeEditor() {
         );
         // Use defaults already set in state
       }
+
+      // Load configured views from API (same as admin interface)
+      try {
+        const response = await fetch(`/api/admin/products/${productId}/views`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.configuredViews && data.configuredViews.length > 0) {
+            setConfiguredViews(data.configuredViews as ProductView[]);
+            console.log("Loaded configured views:", data.configuredViews);
+            
+            // Ensure selected view is valid
+            if (!data.configuredViews.includes(selectedView)) {
+              setSelectedView(data.configuredViews[0] as ProductView);
+            }
+          }
+        } else {
+          console.warn("Failed to fetch configured views, using defaults");
+        }
+      } catch (error) {
+        console.warn("Error fetching configured views, using defaults:", error);
+      }
     };
 
     loadProductData();
@@ -332,15 +370,39 @@ function CustomizeEditor() {
     router.push(`/customize?productId=${id}&color=${selectedColor}`);
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setSelectedFile(file);
+    try {
+      // Validate file securely
+      const validation = await SecureFileValidator.validateFile(file);
+      if (!validation.isValid) {
+        toast.error(validation.error || 'Invalid file');
+        event.target.value = ''; // Clear the input
+        return;
+      }
 
-    // Create blob URL for preview
-    const blobUrl = URL.createObjectURL(file);
-    setSelectedFilePreview(blobUrl);
+      // Additional image dimension validation
+      const dimensionValidation = await SecureFileValidator.validateImageDimensions(file, 4096, 4096);
+      if (!dimensionValidation.isValid) {
+        toast.error(dimensionValidation.error || 'Invalid image dimensions');
+        event.target.value = ''; // Clear the input
+        return;
+      }
+
+      setSelectedFile(file);
+
+      // Create safe preview URL
+      const blobUrl = SecureFileValidator.createSafePreviewUrl(file);
+      setSelectedFilePreview(blobUrl);
+      
+      toast.success('Image validated successfully');
+    } catch (error) {
+      console.error('File validation error:', error);
+      toast.error('Error validating file');
+      event.target.value = ''; // Clear the input
+    }
   };
 
   const handleAddImageToCanvas = () => {
@@ -404,7 +466,7 @@ function CustomizeEditor() {
     setSelectedImageId(null);
   };
 
-  const getFitScale = (
+  const getFitScale = React.useCallback((
     imgWidth: number,
     imgHeight: number,
     canvasWidth: number,
@@ -412,18 +474,22 @@ function CustomizeEditor() {
   ) => {
     const widthScale = canvasWidth / imgWidth;
     const heightScale = canvasHeight / imgHeight;
-    return Math.min(widthScale, heightScale, 1); // Ensure it doesn't scale up beyond original size
-  };
+    return Math.min(widthScale, heightScale, 1);
+  }, []);
 
   const handleSelectExistingImage = async (image: ProductImage) => {
     try {
-      const response = await fetch(image.url);
+      const response = await fetch(image.image_url);
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
 
       const newImageId = `${selectedView}-${Date.now()}`;
       const img = new window.Image();
-      img.src = blobUrl;
+      img.onerror = () => {
+        URL.revokeObjectURL(blobUrl);
+        console.error("Failed to load image");
+        alert("Failed to load image. Please try again.");
+      };
       img.onload = () => {
         const scale = getFitScale(
           img.width,
@@ -434,9 +500,9 @@ function CustomizeEditor() {
         const newCustomization: ViewCustomization = {
           id: newImageId,
           blobUrl: blobUrl,
-          file: null, // Already uploaded
+          file: null,
           uploadedImageId: image.id,
-          uploadedUrl: image.url,
+          uploadedUrl: image.image_url,
           x: 0.5,
           y: 0.5,
           scale: scale,
@@ -450,6 +516,7 @@ function CustomizeEditor() {
 
         setSelectedImageId(newImageId);
       };
+      img.src = blobUrl;
     } catch (error) {
       console.error("Failed to load image:", error);
       alert("Failed to load image. Please try again.");
@@ -458,8 +525,10 @@ function CustomizeEditor() {
 
   const renderShirtSVG = React.useCallback((view: ProductView, color: string): string => {
     try {
+      // Sanitize color input
+      const sanitizedColor = isValidColor(color) ? color : '#000000';
+      
       // 1. Try to find a specific variant image from DB
-      // Use productVariants state
       const variantsToUse = productVariants;
       
       // Safety check - ensure we have valid variants
@@ -469,37 +538,59 @@ function CustomizeEditor() {
         if (!productConfig) return "";
 
         const svgPaths = productConfig.svgs[view]
-          .map(
-            (p) =>
-              `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`,
+          .map((p) => 
+            SecureSVGRenderer.createSecurePath(
+              p.d || '',
+              sanitizedColor,
+              p.stroke || '',
+              String(p.strokeWidth || '0')
+            )
           )
           .join("");
 
-        return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
+        return SecureSVGRenderer.createSecureSVG(
+          "0 0 300 400",
+          svgPaths,
+          { style: "width: 100%; height: 100%;" }
+        );
       }
 
       // Try to find variant - use optional chaining for safety
       const variant = variantsToUse?.find?.(v => v.view === view && v.color === color);
       if (variant?.image_url) {
-        // Return SVG wrapping the image
-        // We use preserveAspectRatio="none" or "xMidYMid meet" depending on needs.
-        // Since the container is 300x400 (or relative), we want to fill it.
-        return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-          <image href="${variant.image_url}" x="0" y="0" width="300" height="400" preserveAspectRatio="xMidYMid slice" />
-        </svg>`;
+        // Create secure SVG wrapping the image
+        const secureImage = SecureSVGRenderer.createSecureImage(
+          variant.image_url,
+          0, 0, 300, 400,
+          "xMidYMid slice"
+        );
+        
+        return SecureSVGRenderer.createSecureSVG(
+          "0 0 300 400",
+          secureImage,
+          { style: "width: 100%; height: 100%;" }
+        );
       }
 
       // 2. Fallback to productConfig SVG (recolorable)
       if (!productConfig) return "";
 
       const svgPaths = productConfig.svgs[view]
-        .map(
-          (p) =>
-            `<path d="${p.d}" fill="${color}" stroke="${p.stroke}" stroke-width="${p.strokeWidth}"/>`,
+        .map((p) => 
+          SecureSVGRenderer.createSecurePath(
+            p.d || '',
+            sanitizedColor,
+            p.stroke || '',
+            String(p.strokeWidth || '0')
+          )
         )
         .join("");
 
-      return `<svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
+      return SecureSVGRenderer.createSecureSVG(
+        "0 0 300 400",
+        svgPaths,
+        { style: "width: 100%; height: 100%;" }
+      );
     } catch (error) {
       console.error("Error in renderShirtSVG:", error);
       return "";
@@ -542,21 +633,51 @@ function CustomizeEditor() {
         const ctx = compositeCanvas.getContext("2d");
 
         if (ctx) {
-          // Draw SVG background
-          const svgImg = new window.Image();
-          const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
-            type: "image/svg+xml",
-          });
-          const svgUrl = URL.createObjectURL(svgBlob);
+          // Draw product image background
+          if (productImageUrl) {
+            const productImg = new window.Image();
+            productImg.crossOrigin = "anonymous";
+            
+            await new Promise<void>((resolve) => {
+              productImg.onload = () => {
+                ctx.drawImage(productImg, 0, 0, canvasWidth, canvasHeight);
+                resolve();
+              };
+              productImg.onerror = () => {
+                console.error('Failed to load product image for PDF:', productImageUrl);
+                // Fallback to SVG if image fails
+                const svgImg = new window.Image();
+                const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
+                  type: "image/svg+xml",
+                });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                
+                svgImg.onload = () => {
+                  ctx.drawImage(svgImg, 0, 0, canvasWidth, canvasHeight);
+                  URL.revokeObjectURL(svgUrl);
+                  resolve();
+                };
+                svgImg.src = svgUrl;
+              };
+              productImg.src = productImageUrl;
+            });
+          } else {
+            // Fallback to SVG when no image is available
+            const svgImg = new window.Image();
+            const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
+              type: "image/svg+xml",
+            });
+            const svgUrl = URL.createObjectURL(svgBlob);
 
-          await new Promise<void>((resolve) => {
-            svgImg.onload = () => {
-              ctx.drawImage(svgImg, 0, 0, canvasWidth, canvasHeight);
-              URL.revokeObjectURL(svgUrl);
-              resolve();
-            };
-            svgImg.src = svgUrl;
-          });
+            await new Promise<void>((resolve) => {
+              svgImg.onload = () => {
+                ctx.drawImage(svgImg, 0, 0, canvasWidth, canvasHeight);
+                URL.revokeObjectURL(svgUrl);
+                resolve();
+              };
+              svgImg.src = svgUrl;
+            });
+          }
 
           // Draw customizations on top
           for (const cust of customizations) {
@@ -607,7 +728,7 @@ function CustomizeEditor() {
       console.error("PDF generation error:", error);
       return null;
     }
-  }, [productId, currentProduct, selectedColor, renderShirtSVG, viewCustomizations, designAreas, canvasSize, getFitScale]);
+  }, [productId, currentProduct, selectedColor, renderShirtSVG, viewCustomizations, designAreas, canvasSize, getFitScale, productImageUrl]);
 
 
   const handleOrder = React.useCallback(async () => {
@@ -617,6 +738,11 @@ function CustomizeEditor() {
       router.push("/login?redirect=/customize");
       return;
     }
+
+    // Debug: Log authentication state
+    console.log("User session:", session);
+    console.log("User ID:", session.user.id);
+    console.log("User email:", session.user.email);
 
     const orderToast = toast.loading('Starting your order...');
 
@@ -653,36 +779,118 @@ function CustomizeEditor() {
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       
-      // Upload to Supabase Storage
+      // Upload to Supabase Storage with public access
       toast.loading('Uploading order files...', { id: orderToast });
       const fileName = `order-${Date.now()}-${productId}.zip`;
+      
+      // Try upload with public bucket policy
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('orders')
-        .upload(fileName, zipBlob);
+        .upload(fileName, zipBlob, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) {
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        console.error('Storage upload error:', uploadError);
+        
+        // Fallback: Try uploading to public bucket or use base64
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            const base64Data = result.split(',')[1]; // Remove data:application/zip;base64,
+            resolve(base64Data);
+          };
+          reader.readAsDataURL(zipBlob);
+        });
+        
+        const fileUrl = `data:application/zip;base64,${base64}`;
+        console.log('Using base64 fallback for order file');
+        
+        // Skip storage upload and go directly to order creation
+        const { data: orderData, error: orderError } = await supabase
+          .from('Order')
+          .insert({
+            user_id: session.user.id,
+            product_id: productId ? Number(productId) : null,
+            file_url: fileUrl,
+            status: 'pending_confirmation',
+            total_price: 0
+          })
+          .select()
+          .single();
+
+        if (orderError) {
+          throw new Error(`Order creation failed: ${orderError.message}`);
+        }
+
+        setCurrentOrderId(orderData.id);
+        setIsOrderConfirmationOpen(true);
+        toast.success('Order created! Please confirm PDF.', { id: orderToast });
+        setIsGeneratingPDF(false);
+        return;
       }
 
       const { data: publicUrlData } = supabase.storage.from('orders').getPublicUrl(fileName);
       const fileUrl = publicUrlData.publicUrl;
 
-      // Create Order Entry
+      // Create Order Entry with correct schema
       toast.loading('Creating order...', { id: orderToast });
+      
+      // First create the main order
       const { data: orderData, error: orderError } = await supabase
         .from('Order')
         .insert({
-          user_id: session.user.id,
-          product_id: productId ? Number(productId) : null,
+          user_id: session.user.id, // UUID from auth session
           file_url: fileUrl,
           status: 'pending_confirmation',
-          total_price: 0 // Placeholder or calculate based on product
+          total_price: currentProduct?.price || 0 // Use actual product price
         })
         .select()
         .single();
 
       if (orderError) {
         throw new Error(`Order creation failed: ${orderError.message}`);
+      }
+
+      // Handle different product types
+      if (currentProduct?.customizable) {
+        // Customizable product: Create order item with customizations
+        const { data: orderItemData, error: orderItemError } = await supabase
+          .from('OrderItems')
+          .insert({
+            order_id: orderData.id,
+            product_id: productId ? Number(productId) : null,
+            quantity: 1,
+            unit_price: currentProduct?.price || 0,
+            customization: JSON.stringify(viewCustomizations), // Store customizations as JSON
+            design_file_url: fileUrl
+          })
+          .select()
+          .single();
+
+        if (orderItemError) {
+          throw new Error(`Order item creation failed: ${orderItemError.message}`);
+        }
+      } else {
+        // Non-customizable product: Create simple order item
+        const { data: orderItemData, error: orderItemError } = await supabase
+          .from('OrderItems')
+          .insert({
+            order_id: orderData.id,
+            product_id: productId ? Number(productId) : null,
+            quantity: 1,
+            unit_price: currentProduct?.price || 0,
+            customization: null, // No customizations for non-customizable products
+            design_file_url: null // No design file needed
+          })
+          .select()
+          .single();
+
+        if (orderItemError) {
+          throw new Error(`Order item creation failed: ${orderItemError.message}`);
+        }
       }
 
       setCurrentOrderId(orderData.id);
@@ -729,9 +937,13 @@ function CustomizeEditor() {
   // Update canvas size when container resizes
   React.useEffect(() => {
     const updateCanvasSize = () => {
-      if (canvasContainerRef.current) {
-        const rect = canvasContainerRef.current.getBoundingClientRect();
-        setCanvasSize({ width: rect.width, height: rect.height });
+      if (svgContainerRef.current) {
+        const rect = svgContainerRef.current.getBoundingClientRect();
+        // Calculate the actual design area dimensions based on SVG container size
+        const area = designAreas[selectedView];
+        const designAreaWidth = rect.width * area.width;
+        const designAreaHeight = rect.height * area.height;
+        setCanvasSize({ width: designAreaWidth, height: designAreaHeight });
       }
     };
 
@@ -739,6 +951,38 @@ function CustomizeEditor() {
     window.addEventListener("resize", updateCanvasSize);
     return () => window.removeEventListener("resize", updateCanvasSize);
   }, [selectedView, designAreas]);
+
+  // Get product image URL for current view and color
+  React.useEffect(() => {
+    const getProductImageUrl = () => {
+      // First try to find a variant image for the current view and color
+      const variant = productVariants.find(
+        v => v.view === selectedView && v.color.toLowerCase() === selectedColor.toLowerCase()
+      );
+      
+      if (variant?.image_url) {
+        const validatedUrl = SecureSVGRenderer.validateImageURL(variant.image_url);
+        if (validatedUrl) {
+          setProductImageUrl(validatedUrl);
+          return;
+        }
+      }
+      
+      // Fallback to product default image
+      if (currentProduct?.image) {
+        const validatedUrl = SecureSVGRenderer.validateImageURL(currentProduct.image);
+        if (validatedUrl) {
+          setProductImageUrl(validatedUrl);
+          return;
+        }
+      }
+      
+      // No valid image found
+      setProductImageUrl(null);
+    };
+
+    getProductImageUrl();
+  }, [selectedView, selectedColor, productVariants, currentProduct]);
 
   // Konva Image Component
   const EditableImage: React.FC<{
@@ -933,7 +1177,8 @@ function CustomizeEditor() {
     );
   };
 
-  const productViews: ProductView[] = ["FRONT", "BACK", "RIGHT", "LEFT"];
+  // Use configured views if available, otherwise fallback to default
+  const productViews: ProductView[] = configuredViews.length > 0 ? configuredViews : defaultViews;
 
   const colorsToRender = availableColors.length
     ? availableColors
@@ -964,6 +1209,14 @@ function CustomizeEditor() {
     }
     setSelectedNavItem(itemId);
   };
+
+  if (isConfigLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#f5f3f0]">
+        <div className="text-gray-600">Loading configuration...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f5f3f0]">
@@ -1008,16 +1261,42 @@ function CustomizeEditor() {
           <div className="relative w-full h-full max-w-2xl flex items-center justify-center">
             {/* T-shirt Display */}
             <div className="relative w-full max-w-md flex items-center justify-center">
-              {/* T-shirt SVG - Dynamic based on view */}
+              {/* Product Image - Direct display with validation */}
               <div
-                className="w-full h-auto max-h-[600px]"
-                dangerouslySetInnerHTML={{
-                  __html: renderShirtSVG(selectedView, selectedColor),
-                }}
-              />
+                ref={svgContainerRef}
+                className="relative w-full h-auto"
+                style={{ maxHeight: '600px' }}
+              >
+                {productImageUrl ? (
+                  <img
+                    src={productImageUrl}
+                    alt={`${currentProduct?.name || 'Product'} - ${selectedView} view in ${selectedColor}`}
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      console.error('Product image failed to load:', productImageUrl);
+                      setProductImageUrl(null);
+                    }}
+                  />
+                ) : (
+                  /* Fallback SVG when no image is available */
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: renderShirtSVG(selectedView, selectedColor),
+                    }}
+                  />
+                )}
+              </div>
 
               {/* Konva Canvas for design area - overlays SVG */}
-              <div className="absolute inset-0 pointer-events-none">
+              <div 
+                className="absolute pointer-events-none"
+                style={{
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0
+                }}
+              >
                 <div
                   ref={canvasContainerRef}
                   className="absolute pointer-events-auto border-2 border-dashed border-gray-400/60 bg-white/5 rounded-md"
@@ -1086,6 +1365,7 @@ function CustomizeEditor() {
         onSelectView={setSelectedView}
         renderShirtSVG={renderShirtSVG}
         selectedColor={selectedColor}
+        viewCustomizations={viewCustomizations}
       />
 
       <Dialog open={isOrderConfirmationOpen} onOpenChange={setIsOrderConfirmationOpen}>
@@ -1117,6 +1397,25 @@ function CustomizeEditor() {
       </Dialog>
     </div>
   );
+
+  // Cleanup effect for blob URLs
+  React.useEffect(() => {
+    return () => {
+      // Cleanup preview URL
+      if (selectedFilePreview) {
+        SecureFileValidator.revokePreviewUrl(selectedFilePreview);
+      }
+      
+      // Cleanup all blob URLs in customizations
+      Object.values(viewCustomizations).forEach(customizations => {
+        customizations.forEach(customization => {
+          if (customization.blobUrl) {
+            SecureFileValidator.revokePreviewUrl(customization.blobUrl);
+          }
+        });
+      });
+    };
+  }, [selectedFilePreview, viewCustomizations]);
 }
 
 export default function CustomizePage() {

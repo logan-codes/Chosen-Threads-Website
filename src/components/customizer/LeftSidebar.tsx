@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shirt, ImageIcon, ShoppingCart } from 'lucide-react';
+import { Shirt, ImageIcon, ShoppingCart, History, Sparkles } from 'lucide-react';
+import { ProductSelector } from './ProductSelector';
+import { ColorPicker } from './ColorPicker';
 
 interface LeftSidebarProps {
   selectedNavItem: string | null;
@@ -37,13 +39,25 @@ export function LeftSidebar({
   onAddImageToCanvas, isUploading, viewCustomizations, selectedView, onDeleteCurrentImage, 
   currentCustomization, onScaleChange, uploadedImages, onSelectExistingImage 
 }: LeftSidebarProps) {
+  const [recentlyViewed, setRecentlyViewed] = useState<number[]>([]);
+  
   const navItems = [
     { id: 'products', label: 'Products', icon: Shirt },
-    { id: 'image', label: 'Image', icon: ImageIcon },
+    { id: 'image', label: 'Artwork', icon: ImageIcon },
     { id: 'order', label: 'Order', icon: ShoppingCart },
   ];
 
   const buttonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Track recently viewed products
+  useEffect(() => {
+    if (currentProduct?.id) {
+      setRecentlyViewed(prev => {
+        const filtered = prev.filter(id => id !== currentProduct.id);
+        return [currentProduct.id, ...filtered].slice(0, 5);
+      });
+    }
+  }, [currentProduct?.id]);
 
   return (
     <div className="relative flex">
@@ -84,110 +98,92 @@ export function LeftSidebar({
 
       {selectedNavItem && (
         <div 
-          className="absolute left-full w-80 bg-white border-r border-[#e8e5e0] shadow-xl overflow-y-auto z-50"
+          className="absolute left-full w-96 bg-white border-r border-[#e8e5e0] shadow-xl overflow-y-auto z-50"
           style={{
-            top: `80px`, // Position below the header
-            maxHeight: 'calc(100vh - 100px)', // Adjust height to fit
+            top: `80px`,
+            maxHeight: 'calc(100vh - 100px)',
           }}
         >
-          <div className="p-4">
+          <div className="p-5">
             {selectedNavItem === "products" && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                  Product
-                </h3>
-                {currentProduct ? (
-                  <div className="flex items-center gap-3 mb-3">
-                    {currentProduct.image && (
-                      <div className="relative h-10 w-10 overflow-hidden rounded-md bg-gray-100">
-                        <Image
-                          src={currentProduct.image}
-                          alt={currentProduct.name}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {currentProduct.name}
-                      </div>
-                      <div className="text-[11px] uppercase tracking-wide text-gray-400">
-                        {currentProduct.category}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 mb-3">
-                    Loading product details...
-                  </p>
-                )}
+              <div className="space-y-5">
+                {/* Enhanced Product Selection */}
+                <ProductSelector
+                  products={products}
+                  currentProduct={currentProduct}
+                  onProductChange={onProductChange}
+                  recentlyViewed={recentlyViewed}
+                />
 
-                {products.length > 1 && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                      Switch product
-                    </p>
-                    <div className="max-h-56 overflow-y-auto space-y-1">
-                      {products.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => onProductChange(p.id)}
-                          className={cn(
-                            "w-full flex items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-gray-50",
-                            currentProduct && currentProduct.id === p.id
-                              ? "bg-gray-100 font-semibold"
-                              : "text-gray-600"
-                          )}
-                        >
-                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-[10px] font-semibold">
-                            #{p.id}
-                          </span>
-                          <span className="truncate">{p.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                {/* Enhanced Color Selection */}
+                {availableColors.length > 0 && (
+                  <div className="pt-5 border-t border-gray-100">
+                    <ColorPicker
+                      colors={availableColors}
+                      selectedColor={selectedColor}
+                      onColorSelect={onColorSelect}
+                      productName={currentProduct?.name}
+                    />
                   </div>
                 )}
-
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-2">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Colors
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {availableColors.map((color) => (
-                      <button
-                        key={color}
-                        onClick={() => onColorSelect(color)}
-                        className={cn(
-                          "h-8 w-8 rounded-full border-2 border-transparent ring-2 ring-transparent transition-all",
-                          selectedColor === color &&
-                            "ring-gray-900 ring-offset-2 ring-offset-white"
-                        )}
-                        style={{ backgroundColor: color }}
-                        aria-label={`Select color ${color}`}
-                      />
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
 
             {selectedNavItem === "order" && (
               <div className="space-y-4">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-                  Order
+                  Order Summary
                 </h3>
+                
+                {currentProduct && (
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      {currentProduct.image && (
+                        <div className="relative h-14 w-14 overflow-hidden rounded-lg bg-white">
+                          <Image
+                            src={currentProduct.image}
+                            alt={currentProduct.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-sm font-bold text-gray-900">
+                          {currentProduct.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {selectedColor}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                      <span className="text-sm text-gray-600">Price</span>
+                      <span className="text-lg font-bold text-gray-900">
+                        ${currentProduct.price}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-gray-600">
                     Review your customizations and place your order.
                   </p>
                   <Button
                     onClick={onOrder}
-                    className="w-full bg-black text-white hover:bg-zinc-800 rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                    className="w-full bg-black text-white hover:bg-zinc-800 rounded-lg px-4 py-3 text-sm font-semibold disabled:opacity-50 h-12"
                   >
+                    <ShoppingCart className="w-4 h-4 mr-2" />
                     Place Order
                   </Button>
+                </div>
+
+                <div className="pt-4 border-t border-gray-100">
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    By placing an order, you agree to our terms of service. 
+                    Custom orders may take 5-7 business days to process.
+                  </p>
                 </div>
               </div>
             )}
@@ -197,27 +193,32 @@ export function LeftSidebar({
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
                   Artwork
                 </h3>
-                <div className="space-y-2">
+                
+                {/* Upload Section */}
+                <div className="space-y-3">
                   <label className="text-[11px] uppercase tracking-wide text-gray-400">
-                    Choose image
+                    Upload Image
                   </label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={onFileSelect}
-                  />
+                  <div className="relative">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={onFileSelect}
+                      className="cursor-pointer"
+                    />
+                  </div>
                   <p className="text-[11px] text-gray-400">
-                    PNG or JPG, up to 5MB.
+                    PNG, JPG or SVG, up to 5MB
                   </p>
                   
                   {selectedFilePreview && (
-                    <div className="space-y-2">
-                      <div className="relative h-24 w-full overflow-hidden rounded-md border border-dashed border-gray-200 bg-gray-50">
+                    <div className="space-y-3">
+                      <div className="relative h-32 w-full overflow-hidden rounded-lg border border-dashed border-gray-200 bg-gray-50">
                         <Image
                           src={selectedFilePreview}
                           alt="Selected file preview"
                           fill
-                          className="object-contain"
+                          className="object-contain p-2"
                         />
                       </div>
                       <Button
@@ -225,22 +226,27 @@ export function LeftSidebar({
                         disabled={isUploading}
                         className="w-full bg-black text-white hover:bg-zinc-800 rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-50"
                       >
-                        {isUploading ? "Adding..." : "Add to Canvas"}
+                        {isUploading ? (
+                          <>
+                            <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            Adding...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Add to Design
+                          </>
+                        )}
                       </Button>
                     </div>
                   )}
-                  
-                  {isUploading && !selectedFilePreview && (
-                    <p className="text-[11px] text-gray-500">
-                      Uploading image...
-                    </p>
-                  )}
                 </div>
 
-                <div className="pt-3 border-t border-[#f3f0ea] space-y-2">
+                {/* Current Selection */}
+                <div className="pt-4 border-t border-[#f3f0ea] space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">
-                      Selected Image
+                      Current Selection
                     </p>
                     {viewCustomizations[selectedView].length > 0 && (
                       <button
@@ -251,26 +257,54 @@ export function LeftSidebar({
                       </button>
                     )}
                   </div>
+                  
                   {currentCustomization ? (
-                    <div className="relative h-24 w-full overflow-hidden rounded-md border border-dashed border-gray-200 bg-gray-50">
-                      <Image
-                        src={currentCustomization.blobUrl!}
-                        alt="Current placement"
-                        fill
-                        className="object-contain"
-                      />
+                    <div className="space-y-3">
+                      <div className="relative h-32 w-full overflow-hidden rounded-lg border border-dashed border-gray-200 bg-gray-50">
+                        <Image
+                          src={currentCustomization.blobUrl!}
+                          alt="Current placement"
+                          fill
+                          className="object-contain p-2"
+                        />
+                      </div>
+                      
+                      {/* Scale Control */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-gray-600">Size</label>
+                          <span className="text-xs text-gray-400">
+                            {Math.round((currentCustomization.scale || 1) * 100)}%
+                          </span>
+                        </div>
+                        <Slider
+                          value={[currentCustomization.scale || 1]}
+                          onValueChange={onScaleChange}
+                          min={0.1}
+                          max={3}
+                          step={0.1}
+                        />
+                      </div>
                     </div>
                   ) : viewCustomizations[selectedView].length > 0 ? (
-                    <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
-                      Select an image on the canvas to edit it.
+                    <div className="flex h-24 w-full items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
+                      Select an image on the canvas to edit it
                     </div>
                   ) : (
-                    <div className="flex h-24 w-full items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
-                      No image selected yet.
+                    <div className="flex h-24 w-full items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-[11px] text-gray-400">
+                      No image added yet
                     </div>
                   )}
                 </div>
 
+                {/* Layer Count */}
+                {viewCustomizations[selectedView].length > 0 && (
+                  <div className="pt-3 border-t border-[#f3f0ea]">
+                    <p className="text-[11px] text-gray-500">
+                      {viewCustomizations[selectedView].length} image{viewCustomizations[selectedView].length !== 1 ? 's' : ''} on {selectedView.toLowerCase()} view
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, Eye, EyeOff } from "lucide-react";
+import { supabase } from '@/lib/supabaseClient';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -23,16 +24,60 @@ export default function AdminLogin() {
     setError("");
 
     try {
-      // Simple admin authentication (in production, use proper authentication)
-      if (email === "admin@chosenthreads.com" && password === "admin123") {
-        // Set admin session cookie
-        document.cookie = "admin_session=true; path=/; max-age=86400; secure; samesite=strict";
-        router.push("/admin/dashboard");
-      } else {
-        setError("Invalid credentials. Please try again.");
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        setError(`Authentication failed: ${authError.message}`);
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      setError("An error occurred. Please try again.");
+
+      if (!authData.user) {
+        setError("No user returned from authentication");
+        setLoading(false);
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      if (!sessionData.session) {
+        setError("Session not established. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError) {
+        setError(`Error checking admin status: ${profileError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!profile) {
+        setError("No profile found. Please contact support.");
+        setLoading(false);
+        return;
+      }
+
+      if (profile.role !== 'admin') {
+        setError(`Access denied. Your role is: ${profile.role}. Admin required.`);
+        await supabase.auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      router.replace("/admin");
+      
+    } catch (error: any) {
+      setError(`Unexpected error: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -59,7 +104,7 @@ export default function AdminLogin() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@chosenthreads.com"
+                placeholder="Enter your admin email"
                 required
               />
             </div>
@@ -92,11 +137,6 @@ export default function AdminLogin() {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <p>Default credentials:</p>
-            <p>Email: admin@chosenthreads.com</p>
-            <p>Password: admin123</p>
-          </div>
         </CardContent>
       </Card>
     </div>

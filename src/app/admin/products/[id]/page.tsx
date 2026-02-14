@@ -43,7 +43,7 @@ type DesignArea = {
 export default function ProductEditorPage() {
   const router = useRouter();
   const params = useParams();
-  const id = params.id === "new" ? null : Number(params.id);
+  const id = params.id === "new" ? null : Number(params.id as string);
 
   const [loading, setLoading] = React.useState(false);
   const [initialLoading, setInitialLoading] = React.useState(!!id);

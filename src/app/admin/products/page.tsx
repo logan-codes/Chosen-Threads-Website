@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, Search, Package, Star } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, Star, Palette, Maximize, Eye } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -218,21 +218,45 @@ export default function AdminProductsPage() {
                       <Badge variant="secondary" className="text-xs">Customizable</Badge>
                     )}
                   </div>
-                  <div className="flex space-x-2 mt-4">
-                    <Link href={`/admin/products/${product.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Edit
+                  <div className="flex flex-col space-y-2 mt-4">
+                    <div className="flex space-x-2">
+                      <Link href={`/admin/products/${product.id}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Edit
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => deleteProduct(product.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                      onClick={() => deleteProduct(product.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    </div>
+                    {product.customizable && (
+                      <>
+                        <Link href={`/admin/products/${product.id}/variants`}>
+                          <Button variant="secondary" size="sm" className="w-full">
+                            <Palette className="w-4 h-4 mr-2" />
+                            Manage Variants
+                          </Button>
+                        </Link>
+                        <Link href={`/admin/products/${product.id}/design-areas`}>
+                          <Button variant="secondary" size="sm" className="w-full">
+                            <Maximize className="w-4 h-4 mr-2" />
+                            Design Areas
+                          </Button>
+                        </Link>
+                        <Link href={`/admin/products/${product.id}/views`}>
+                          <Button variant="secondary" size="sm" className="w-full">
+                            <Eye className="w-4 h-4 mr-2" />
+                            Configure Views
+                          </Button>
+                        </Link>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>

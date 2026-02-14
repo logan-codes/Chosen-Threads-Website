@@ -4,18 +4,17 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Check if the path is admin-related
   if (pathname.startsWith('/admin')) {
-    // Allow access to admin login page
     if (pathname === '/admin/login') {
       return NextResponse.next();
     }
     
-    // Check for admin session cookie
-    const adminSession = request.cookies.get('admin_session');
-    
-    if (!adminSession) {
-      // Redirect to admin login if no admin session
+    const cookies = request.cookies;
+    const hasSupabaseCookie = Array.from(cookies.getAll()).some(cookie => 
+      cookie.name.includes('sb-') || cookie.name.includes('supabase')
+    );
+
+    if (!hasSupabaseCookie) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
   }

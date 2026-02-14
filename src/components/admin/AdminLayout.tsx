@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,15 +19,27 @@ import {
   Palette,
   MessageSquare
 } from "lucide-react";
+import { signOutAdmin, getCurrentAdminUser } from "@/lib/adminAuth";
+import AdminAuthWrapper from "@/components/admin/AdminAuthWrapper";
+import { NotificationPanel } from "@/components/admin/Notifications";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
+function AdminLayoutContent({ children }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [adminUser, setAdminUser] = useState<any>(null);
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    const fetchAdminUser = async () => {
+      const user = await getCurrentAdminUser();
+      setAdminUser(user);
+    };
+    fetchAdminUser();
+  }, []);
 
   const navigation = [
     { name: "Dashboard", href: "/admin/dashboard", icon: Home },
@@ -41,9 +53,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
-  const handleLogout = () => {
-    document.cookie = "admin_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    router.push("/admin/login");
+  const handleLogout = async () => {
+    try {
+      await signOutAdmin();
+      router.push("/admin/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      router.push("/admin/login");
+    }
   };
 
   return (
@@ -133,19 +150,14 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </Button>
 
               <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <Button variant="outline" size="sm">
-                    <Bell className="w-4 h-4" />
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                      3
-                    </span>
-                  </Button>
-                </div>
+                <NotificationPanel />
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">Admin User</p>
-                    <p className="text-xs text-gray-500">admin@chosenthreads.com</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {adminUser?.email?.split('@')[0] || 'Admin User'}
+                    </p>
+                    <p className="text-xs text-gray-500">{adminUser?.email || 'admin@chosenthreads.com'}</p>
                   </div>
                 </div>
               </div>
@@ -159,5 +171,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }: AdminLayoutProps) {
+  return (
+    <AdminAuthWrapper>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </AdminAuthWrapper>
   );
 }

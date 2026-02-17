@@ -20,6 +20,7 @@ type Order = {
   status: string;
   product_id: number;
   file_url: string;
+  confirmation_pdf_url: string;
   contact_info: any;
   total_price: number;
 };
@@ -104,7 +105,7 @@ function CheckoutContent() {
       const { error } = await supabase
         .from('Order')
         .update({
-          status: 'pending_contact',
+          status: 'confirmed',
           contact_info: formData
         })
         .eq('id', orderId);
@@ -256,14 +257,24 @@ function CheckoutContent() {
                              {order.product_id ? `Product ID: ${order.product_id}` : 'Custom Design'}
                           </div>
                           <div className="flex gap-3 items-center">
+                             {order.confirmation_pdf_url && (
+                               <a 
+                                 href={order.confirmation_pdf_url} 
+                                 target="_blank" 
+                                 rel="noopener noreferrer"
+                                 className="text-sm text-primary hover:underline font-medium"
+                               >
+                                 View Confirmation PDF
+                               </a>
+                             )}
                              {order.file_url && (
                                <a 
                                  href={order.file_url} 
                                  target="_blank" 
                                  rel="noopener noreferrer"
-                                 className="text-sm text-primary hover:underline font-medium"
+                                 className="text-sm text-zinc-500 hover:underline"
                                >
-                                 View Design
+                                 View Design (ZIP)
                                </a>
                              )}
                              {order.status === 'pending_confirmation' && (

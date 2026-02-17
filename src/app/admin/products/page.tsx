@@ -206,7 +206,7 @@ export default function AdminProductsPage() {
                     <h3 className="font-semibold text-lg truncate">{product.name}</h3>
                     <p className="text-sm text-gray-600">{product.category}</p>
                     <div className="flex items-center justify-between">
-                      <span className="text-xl font-bold text-primary">${product.price}</span>
+                      <span className="text-xl font-bold text-primary">₹{product.price}</span>
                       {product.rating && (
                         <div className="flex items-center">
                           <Star className="w-4 h-4 text-yellow-400 fill-current" />

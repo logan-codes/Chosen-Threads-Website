@@ -11,18 +11,6 @@ export interface AdminUser {
   role: string;
 }
 
-export async function getCurrentAdminUser(): Promise<AdminUser | null> {
-  try {
-    // This should be called from API routes with proper auth context
-    // For now, we'll need to extract the token from the request headers
-    // in the actual API route implementations
-    return null;
-  } catch (error) {
-    console.error('Error getting current admin user:', error);
-    return null;
-  }
-}
-
 export async function verifyAdminToken(token: string): Promise<AdminUser | null> {
   try {
     const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -58,7 +46,6 @@ export async function getAdminUserFromRequest(request: Request): Promise<AdminUs
     const token = authHeader?.replace('Bearer ', '');
     
     if (!token) {
-      // Try to get token from cookies as fallback
       const cookieHeader = request.headers.get('cookie');
       if (cookieHeader) {
         const cookies = Object.fromEntries(

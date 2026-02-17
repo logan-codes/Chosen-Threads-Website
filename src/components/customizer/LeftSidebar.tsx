@@ -160,7 +160,7 @@ export function LeftSidebar({
                     <div className="flex items-center justify-between pt-2 border-t border-gray-200">
                       <span className="text-sm text-gray-600">Price</span>
                       <span className="text-lg font-bold text-gray-900">
-                        ${currentProduct.price}
+                        ₹{currentProduct.price}
                       </span>
                     </div>
                   </div>

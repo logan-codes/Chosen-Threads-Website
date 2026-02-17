@@ -5,7 +5,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  BarChart3, 
   Package, 
   ShoppingBag, 
   Users, 
@@ -16,8 +15,6 @@ import {
   Menu,
   X,
   Home,
-  Palette,
-  MessageSquare
 } from "lucide-react";
 import { signOutAdmin, getCurrentAdminUser } from "@/lib/adminAuth";
 import AdminAuthWrapper from "@/components/admin/AdminAuthWrapper";
@@ -42,14 +39,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   }, []);
 
   const navigation = [
-    { name: "Dashboard", href: "/admin/dashboard", icon: Home },
+    { name: "Dashboard", href: "/admin", icon: Home },
     { name: "Products", href: "/admin/products", icon: Package },
     { name: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { name: "Customers", href: "/admin/customers", icon: Users },
     { name: "Reviews", href: "/admin/reviews", icon: Star },
-    { name: "Customizations", href: "/admin/customizations", icon: Palette },
-    { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
-    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
 

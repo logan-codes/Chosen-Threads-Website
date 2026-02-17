@@ -80,7 +80,7 @@ export const SECURITY_CONFIG = {
       'img-src': ["'self'", "data:", "https:", "blob:"],
       'font-src': ["'self'", "data:"],
       'connect-src': ["'self'", "https://*.supabase.co"],
-      'frame-src': ["'self'", "https://js.stripe.com", "https://checkout.stripe.com"]
+      'frame-src': ["'self'", "https://js.stripe.com", "https://checkout.stripe.com", "https://*.supabase.co"]
     }
   },
 

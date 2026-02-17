@@ -24,15 +24,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('Reviews')
       .select(`
-        *,
-        product:product_id (
-          name,
-          image
-        ),
-        user:user_id (
-          email,
-          full_name
-        )
+        *
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);

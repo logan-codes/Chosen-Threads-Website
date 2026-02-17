@@ -4,6 +4,9 @@ import { useState } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Star } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface ProductVariant {
   id: number;
@@ -19,17 +22,75 @@ interface ProductDetailsProps {
     category: string;
     image: string;
     customizable: boolean;
+    price: number;
   };
   variants: ProductVariant[];
 }
 
 export function ProductDetails({ product, variants }: ProductDetailsProps) {
+  const router = useRouter();
   const [selectedColor, setSelectedColor] = useState<string>(
     variants.length > 0 ? variants[0].color : "white"
   );
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const colors = [...new Set(variants.map((v) => v.color))];
   const currentVariant = variants.find((v) => v.color === selectedColor);
+
+  const handleBuyNow = async () => {
+    setIsProcessing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error("Please log in to place an order.");
+        router.push(`/login?redirect=/shop/${product.id}`);
+        return;
+      }
+
+      const { data: orderData, error: orderError } = await supabase
+        .from('Order')
+        .insert({
+          user_id: session.user.id,
+          product_id: product.id,
+          status: 'pending_confirmation',
+          total_price: product.price,
+          selected_color: selectedColor
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        throw new Error(`Order creation failed: ${orderError.message}`);
+      }
+
+      // const { data: orderItemData, error: orderItemError } = await supabase
+      //   .from('OrderItems')
+      //   .insert({
+      //     order_id: orderData.id,
+      //     product_id: product.id,
+      //     quantity: 1,
+      //     unit_price: product.price,
+      //     customization: null,
+      //     design_file_url: null,
+      //     selected_color: selectedColor
+      //   })
+      //   .select()
+      //   .single();
+
+      // if (orderItemError) {
+      //   throw new Error(`Order item creation failed: ${orderItemError.message}`);
+      // }
+
+      toast.success("Order created successfully!");
+      router.push(`/checkout?orderId=${orderData.id}`);
+    } catch (error) {
+      console.error("Buy now error:", error);
+      toast.error("Failed to create order. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -46,13 +107,15 @@ export function ProductDetails({ product, variants }: ProductDetailsProps) {
       {/* Product Image and Color Selection */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Product Image */}
-        <div className="relative aspect-square overflow-hidden rounded-lg bg-zinc-50 shadow-lg">
-          <Image
-            src={currentVariant?.image_url || product.image}
-            alt={`${product.name} in ${selectedColor}`}
-            fill
-            className="object-cover hover:scale-105 transition-transform duration-700"
-          />
+        <div className="relative aspect-square overflow-hidden rounded-lg bg-zinc-50 shadow-lg flex items-center justify-center p-8">
+          <div className="relative w-3/4 h-3/4">
+            <Image
+              src={currentVariant?.image_url || product.image}
+              alt={`${product.name} in ${selectedColor}`}
+              fill
+              className="object-contain hover:scale-105 transition-transform duration-700"
+            />
+          </div>
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-50/20 to-transparent pointer-events-none" />
         </div>
 
@@ -124,12 +187,22 @@ export function ProductDetails({ product, variants }: ProductDetailsProps) {
       </div>
       {/* Action Button */}
       <div className="pt-4">
-        <button
-          onClick={() => window.location.href = `/customize?productId=${product.id}&color=${selectedColor}`}
-          className="w-full bg-primary text-white hover:bg-foreground transition-all px-8 py-4 text-sm font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl hover:scale-105"
-        >
-          {product.customizable ? "Start Customizing" : "Add to Cart"}
-        </button>
+        {product.customizable ? (
+          <button
+            onClick={() => window.location.href = `/customize?productId=${product.id}&color=${selectedColor}`}
+            className="w-full bg-primary text-white hover:bg-foreground transition-all px-8 py-4 text-sm font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl hover:scale-105"
+          >
+            Start Customizing
+          </button>
+        ) : (
+          <button
+            onClick={handleBuyNow}
+            disabled={isProcessing}
+            className="w-full bg-primary text-white hover:bg-foreground transition-all px-8 py-4 text-sm font-bold uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? "Processing..." : "Buy Now"}
+          </button>
+        )}
       </div>
         <div className="flex items-center gap-3">
         </div>

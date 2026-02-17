@@ -163,7 +163,7 @@ export default function AdminDashboard() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</div>
+              <div className="text-2xl font-bold">₹{stats.totalRevenue.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-green-600 flex items-center gap-1">
                   <TrendingUp className="w-3 h-3" />
@@ -313,7 +313,7 @@ export default function AdminDashboard() {
                       <Badge className={getStatusColor(order.status)}>
                         {STATUS_LABELS[order.status]}
                       </Badge>
-                      <span className="text-sm font-medium">${order.total_price?.toFixed(2) || '0.00'}</span>
+                      <span className="text-sm font-medium">₹{order.total_price?.toFixed(2) || '0.00'}</span>
                     </div>
                   </div>
                 ))

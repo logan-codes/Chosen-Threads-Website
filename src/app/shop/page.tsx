@@ -207,13 +207,15 @@ function ShopContent() {
                   >
                     <Card className="border-none bg-white shadow-sm hover:shadow-2xl transition-all duration-500 rounded-sm group overflow-hidden h-full flex flex-col">
                       <CardContent className="p-0 flex flex-col h-full">
-                        <div className="relative aspect-4/5 overflow-hidden bg-zinc-100">
-                          <Image
-                            src={product.image}
-                            alt={product.name}
-                            fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-700"
-                          />
+                        <div className="relative aspect-4/5 overflow-hidden bg-zinc-100 flex items-center justify-center p-4">
+                          <div className="relative w-3/4 h-3/4">
+                            <Image
+                              src={product.image}
+                              alt={product.name}
+                              fill
+                              className="object-contain group-hover:scale-105 transition-transform duration-700"
+                            />
+                          </div>
                           {product.tag && (
                             <Badge className="absolute top-4 left-4 bg-primary text-white rounded-full text-[8px] uppercase tracking-widest px-3 py-1 border-none">
                               {product.tag}
@@ -250,12 +252,14 @@ function ShopContent() {
                                 </Button>
                               </Link>
                             ) : (
-                              <Button
-                                size="sm"
-                                className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
-                              >
-                                Add to Cart
-                              </Button>
+                              <Link href={`/shop/${product.id}`}>
+                                <Button
+                                  size="sm"
+                                  className="bg-primary hover:bg-foreground text-white rounded-full px-6 text-[10px] font-bold uppercase tracking-widest"
+                                >
+                                  Buy Now
+                                </Button>
+                              </Link>
                             )}
                           </div>
                         </div>

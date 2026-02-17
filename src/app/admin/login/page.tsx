@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, Eye, EyeOff } from "lucide-react";
-import { supabase } from '@/lib/supabaseClient';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -24,52 +23,16 @@ export default function AdminLogin() {
     setError("");
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (authError) {
-        setError(`Authentication failed: ${authError.message}`);
-        setLoading(false);
-        return;
-      }
+      const data = await response.json();
 
-      if (!authData.user) {
-        setError("No user returned from authentication");
-        setLoading(false);
-        return;
-      }
-
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      if (!sessionData.session) {
-        setError("Session not established. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', authData.user.id)
-        .single();
-
-      if (profileError) {
-        setError(`Error checking admin status: ${profileError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      if (!profile) {
-        setError("No profile found. Please contact support.");
-        setLoading(false);
-        return;
-      }
-
-      if (profile.role !== 'admin') {
-        setError(`Access denied. Your role is: ${profile.role}. Admin required.`);
-        await supabase.auth.signOut();
+      if (!response.ok) {
+        setError(data.error || 'Authentication failed');
         setLoading(false);
         return;
       }

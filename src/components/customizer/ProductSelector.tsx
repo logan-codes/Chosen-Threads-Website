@@ -83,7 +83,7 @@ export function ProductSelector({
                   {currentProduct.category}
                 </Badge>
                 <span className="text-xs font-semibold text-primary">
-                  ${currentProduct.price}
+                  ₹{currentProduct.price}
                 </span>
               </div>
             </div>
@@ -207,7 +207,7 @@ export function ProductSelector({
                       {product.category}
                     </span>
                     <span className="text-[10px] font-medium text-gray-700">
-                      ${product.price}
+                      ₹{product.price}
                     </span>
                   </div>
                 </div>

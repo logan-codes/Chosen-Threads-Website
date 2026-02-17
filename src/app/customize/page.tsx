@@ -598,124 +598,197 @@ function CustomizeEditor() {
   }, [productConfig, productVariants]);
 
   const generatePDF = React.useCallback(async (): Promise<Blob | null> => {
-    
-
     try {
       const pdf = new jsPDF("p", "mm", "a4");
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 10;
       const contentWidth = pageWidth - 2 * margin;
-      const viewWidth = contentWidth / 2 - 5;
-      const viewHeight = (viewWidth * 4) / 3; // Maintain 4:3 aspect ratio
+      const contentHeight = pageHeight - 2 * margin;
 
-      const views: ProductView[] = ["FRONT", "BACK", "LEFT", "RIGHT"];
-      const positions = [
-        [margin, margin],
-        [margin + viewWidth + 10, margin],
-        [margin, margin + viewHeight + 10],
-        [margin + viewWidth + 10, margin + viewHeight + 10],
-      ];
+      // Determine active views
+      const views: ProductView[] = configuredViews.length > 0 ? configuredViews : ["FRONT", "BACK", "LEFT", "RIGHT"];
+      const viewCount = views.length;
+
+      // Dynamic Layout Calculation
+      let viewWidth, viewHeight, positions;
+
+      if (viewCount === 1) {
+        // Single View - Centered and Large
+        viewWidth = contentWidth * 0.8; // 80% width
+        viewHeight = (viewWidth * 4) / 3;
+        // Check if it fits height-wise
+        if (viewHeight > contentHeight) {
+          viewHeight = contentHeight;
+          viewWidth = (viewHeight * 3) / 4;
+        }
+        const xStr = (pageWidth - viewWidth) / 2;
+        const yStr = (pageHeight - viewHeight) / 2;
+        positions = [[xStr, yStr]];
+      } else if (viewCount === 2) {
+        // Two Views - Side by Side, Vertically Centered
+        viewWidth = (contentWidth - 10) / 2;
+        viewHeight = (viewWidth * 4) / 3;
+        const yStr = (pageHeight - viewHeight) / 2;
+        positions = [
+          [margin, yStr],
+          [margin + viewWidth + 10, yStr]
+        ];
+      } else {
+        // 3 or 4 Views - 2x2 Grid
+        viewWidth = (contentWidth - 10) / 2;
+        viewHeight = (viewWidth * 4) / 3;
+        // Center the grid vertically
+        const gridHeight = viewHeight * 2 + 10;
+        const startY = (pageHeight - gridHeight) / 2;
+        
+        positions = [
+          [margin, startY],
+          [margin + viewWidth + 10, startY],
+          [margin, startY + viewHeight + 10],
+          [margin + viewWidth + 10, startY + viewHeight + 10],
+        ];
+        
+        if (viewCount === 3) {
+            // Optional: Center the 3rd one if you want
+            // positions[2] = [(pageWidth - viewWidth) / 2, startY + viewHeight + 10];
+        }
+      }
 
       for (let i = 0; i < views.length; i++) {
         const view = views[i];
+        if (i >= positions.length) break;
         const [x, y] = positions[i];
 
         const customizations = viewCustomizations[view];
 
-        // Create a composite image with SVG background and Konva canvas overlay
+        // Create canvas for this view
         const compositeCanvas = document.createElement("canvas");
         const onScreenAspectRatio = canvasSize.width / canvasSize.height;
-        const canvasWidth = 400;
-        const canvasHeight = canvasWidth / onScreenAspectRatio;
+        // Logic for HD canvas
+        const canvasWidth = 1200; 
+        const canvasHeight = canvasWidth / onScreenAspectRatio; 
         compositeCanvas.width = canvasWidth;
         compositeCanvas.height = canvasHeight;
         const ctx = compositeCanvas.getContext("2d");
 
         if (ctx) {
-          // Draw product image background
-          if (productImageUrl) {
-            const productImg = new window.Image();
-            productImg.crossOrigin = "anonymous";
-            
-            await new Promise<void>((resolve) => {
-              productImg.onload = () => {
-                ctx.drawImage(productImg, 0, 0, canvasWidth, canvasHeight);
-                resolve();
-              };
-              productImg.onerror = () => {
-                console.error('Failed to load product image for PDF:', productImageUrl);
-                // Fallback to SVG if image fails
-                const svgImg = new window.Image();
-                const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
-                  type: "image/svg+xml",
-                });
-                const svgUrl = URL.createObjectURL(svgBlob);
-                
-                svgImg.onload = () => {
-                  ctx.drawImage(svgImg, 0, 0, canvasWidth, canvasHeight);
-                  URL.revokeObjectURL(svgUrl);
-                  resolve();
-                };
-                svgImg.src = svgUrl;
-              };
-              productImg.src = productImageUrl;
-            });
-          } else {
-            // Fallback to SVG when no image is available
-            const svgImg = new window.Image();
-            const svgBlob = new Blob([renderShirtSVG(view, selectedColor)], {
-              type: "image/svg+xml",
-            });
-            const svgUrl = URL.createObjectURL(svgBlob);
-
-            await new Promise<void>((resolve) => {
-              svgImg.onload = () => {
-                ctx.drawImage(svgImg, 0, 0, canvasWidth, canvasHeight);
-                URL.revokeObjectURL(svgUrl);
-                resolve();
-              };
-              svgImg.src = svgUrl;
-            });
+          // 1. Resolve Background Image for THIS View
+          let bgImageSrc: string | null = null;
+          
+          // Try to find variant image
+          const variant = productVariants.find(v => v.view === view && v.color.toLowerCase() === selectedColor.toLowerCase());
+          if (variant?.image_url) {
+            bgImageSrc = variant.image_url;
+          } else if (view === 'FRONT' && currentProduct?.image) {
+             // Fallback to main product image only if view is FRONT
+             bgImageSrc = currentProduct.image;
           }
 
-          // Draw customizations on top
+          // Helper to draw image
+          const drawImage = async (src: string) => {
+             return new Promise<void>((resolve, reject) => {
+                 const img = new window.Image();
+                 img.crossOrigin = "anonymous";
+                 img.onload = () => {
+                     // Draw to cover/contain
+                     ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+                     resolve();
+                 };
+                 img.onerror = reject;
+                 img.src = src;
+             });
+          };
+
+          // Draw Background
+          try {
+              if (bgImageSrc) {
+                  await drawImage(bgImageSrc);
+              } else {
+                  // Fallback to SVG
+                  const svgString = renderShirtSVG(view, selectedColor);
+                  const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
+                  const svgUrl = URL.createObjectURL(svgBlob);
+                  await drawImage(svgUrl);
+                  URL.revokeObjectURL(svgUrl);
+              }
+          } catch (e) {
+              console.error("Failed to load background for PDF", e);
+              // Fallback to SVG if image failed
+               const svgString = renderShirtSVG(view, selectedColor);
+                  const svgBlob = new Blob([svgString], { type: "image/svg+xml" });
+                  const svgUrl = URL.createObjectURL(svgBlob);
+                  await drawImage(svgUrl).catch(err => console.error("SVG Fallback failed", err));
+                  URL.revokeObjectURL(svgUrl);
+          }
+
+          // Draw Customizations
+          // Need to map Design Area to Canvas coordinates
+          // canvasWidth/Height corresponds to the Product Image dimensions (roughly).
+          // But our DesignArea definitions are relative to... what?
+          // On screen, `designAreas[view]` are relative to the Container which holds the Product Image.
+          // So `x=0.25` means 25% of the Product Image Width.
+          // So we can use `canvasWidth` (which represents the Product Image Width) directly.
+          
+          const areaDef = designAreas[view];
+          const areaX = areaDef.x * canvasWidth;
+          const areaY = areaDef.y * canvasHeight;
+          const areaW = areaDef.width * canvasWidth;
+          const areaH = areaDef.height * canvasHeight;
+
+          // Clip to design area
+          ctx.beginPath();
+          ctx.rect(areaX, areaY, areaW, areaH);
+          ctx.clip();
+
           for (const cust of customizations) {
-            if (cust.blobUrl) {
-              const img = new window.Image();
-              img.crossOrigin = "anonymous";
-
-              await new Promise<void>((resolve) => {
-                img.onload = () => {
-                  const area = designAreas[view];
-                  const areaX = area.x * canvasWidth;
-                  const areaY = area.y * canvasHeight;
-                  const areaW = area.width * canvasWidth;
-                  const areaH = area.height * canvasHeight;
-
-                  // To get the correct final scale, we must consider the user's modifications
-                  // relative to the initial auto-scale.
-                  // The cust.scale is the definitive scale factor applied on the screen.
-                  // We can use it directly, as the drawing context is scaled relative to the
-                  // PDF canvas, just as the on-screen canvas is.
-                  const finalScale = cust.scale;
-
-                  ctx.save();
-                  ctx.translate(areaX + cust.x * areaW, areaY + cust.y * areaH);
-                  ctx.rotate((cust.rotation || 0) * (Math.PI / 180));
-                  ctx.scale(finalScale, finalScale);
-                  ctx.drawImage(img, -img.width / 2, -img.height / 2);
-                  ctx.restore();
-                  resolve();
-                };
-                const blobUrl = cust.blobUrl;
-                if (blobUrl) {
-                  img.src = blobUrl;
-                } else {
-                  resolve(); // Resolve the promise if no blobUrl to avoid hanging
-                }
-              });
-            }
+             if (cust.blobUrl) {
+               const img = new window.Image();
+               img.crossOrigin = "anonymous";
+               await new Promise<void>((resolve) => {
+                 img.onload = () => {
+                   // Position in Full Canvas:
+                   const cx = areaX + cust.x * areaW;
+                   const cy = areaY + cust.y * areaH;
+                   
+                   ctx.save();
+                   ctx.translate(cx, cy);
+                   ctx.rotate((cust.rotation || 0) * (Math.PI / 180));
+                   
+                   // Scale:
+                   // We need to maintain the visual scale relative to the Design Area.
+                   // On screen: `imageWidth = originalWidth * cust.scale`.
+                   // `ratio = imageWidth / canvasSize.width` (screen canvas width).
+                   // Here: `targetWidth = originalWidth * finalScale`.
+                   // `targetWidth / areaW` should equal `ratio`.
+                   // So `originalWidth * finalScale / areaW = originalWidth * cust.scale / specifiedCanvasSize`.
+                   // Wait, `cust.scale` isn't relative to canvas size in Konva?
+                   // Konva scale is a multiplier on the node's dimensions.
+                   // So `displayedWidth = sourceWidth * scale`.
+                   // The `EditableImage` component uses `canvasSize` (which is Design Area Size) as the Stage size.
+                   // So the user sees `sourceWidth * scale` pixels on a Stage of `canvasSize.width` pixels.
+                   // So the User Ratio is `(sourceWidth * scale) / canvasSize.width`.
+                   
+                   // In PDF:
+                   // Design Area Width is `areaW` pixels.
+                   // We want `(sourceWidth * finalScale) / areaW` = User Ratio.
+                   // `finalScale = (areaW * User Ratio) / sourceWidth`
+                   // `finalScale = (areaW * sourceWidth * scale / canvasSize.width) / sourceWidth`
+                   // `finalScale = scale * (areaW / canvasSize.width)`
+                   
+                   // `canvasSize.width` is the screen pixel width of the design area. 
+                   // We access `canvasSize` from state.
+                   const scaleAdjustment = areaW / canvasSize.width;
+                   const finalScale = cust.scale * scaleAdjustment;
+                   
+                   ctx.scale(finalScale, finalScale);
+                   ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                   ctx.restore();
+                   resolve();
+                 };
+                 img.src = cust.blobUrl!;
+               });
+             }
           }
 
           const imgData = compositeCanvas.toDataURL("image/png");
@@ -728,7 +801,7 @@ function CustomizeEditor() {
       console.error("PDF generation error:", error);
       return null;
     }
-  }, [productId, currentProduct, selectedColor, renderShirtSVG, viewCustomizations, designAreas, canvasSize, getFitScale, productImageUrl]);
+  }, [configuredViews, viewCustomizations, productVariants, currentProduct, selectedColor, designAreas, canvasSize, renderShirtSVG]);
 
 
   const handleOrder = React.useCallback(async () => {
@@ -738,11 +811,6 @@ function CustomizeEditor() {
       router.push("/login?redirect=/customize");
       return;
     }
-
-    // Debug: Log authentication state
-    console.log("User session:", session);
-    console.log("User ID:", session.user.id);
-    console.log("User email:", session.user.email);
 
     const orderToast = toast.loading('Starting your order...');
 
@@ -757,33 +825,100 @@ function CustomizeEditor() {
         return;
       }
       
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      setOrderPdfUrl(pdfUrl);
 
-      toast.loading('Creating zip file...', { id: orderToast });
+      // Upload PDF to order-confirmations bucket for customer confirmation
+      toast.loading('Preparing confirmation document...', { id: orderToast });
+      const confirmationFileName = `confirmation-${Date.now()}-${productId}.pdf`;
+      
+      let confirmationPdfUrl = '';
+      try {
+        const { data: confirmationUploadData, error: confirmationUploadError } = await supabase.storage
+          .from('order-confirmations')
+          .upload(confirmationFileName, pdfBlob, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (!confirmationUploadError && confirmationUploadData) {
+          const { data: publicUrlData } = supabase.storage.from('order-confirmations').getPublicUrl(confirmationFileName);
+          confirmationPdfUrl = publicUrlData.publicUrl;
+          setOrderPdfUrl(confirmationPdfUrl);
+        } else {
+          throw confirmationUploadError;
+        }
+      } catch (uploadError) {
+        console.error('Confirmation PDF upload error:', uploadError);
+        throw new Error('Failed to upload confirmation PDF');
+      } 
+
+      toast.loading('Collecting design resources...', { id: orderToast });
       const zip = new JSZip();
       zip.file(`design-${productId}.pdf`, pdfBlob);
 
-      const imageFiles: File[] = [];
-      Object.values(viewCustomizations).forEach(customizations => {
-        customizations.forEach(cust => {
-          if (cust.file && !imageFiles.some(f => f.name === cust.file!.name)) {
-            imageFiles.push(cust.file);
+      const imagesFolder = zip.folder("images");
+      const processedImageIds = new Set<string>();
+
+      // Collect all unique images from all views
+      for (const view of Object.keys(viewCustomizations)) {
+        const customizations = viewCustomizations[view as ProductView];
+        
+        for (const cust of customizations) {
+          // Skip if we've already processed this image ID (to avoid duplicates in ZIP)
+          // Use a combination of ID and source to be safe, or just ID if it's unique per placement
+          // But a user might place the same uploaded image twice.
+          // We want the *source* image. 
+          // If we have an uploadedImageId, use that. If not, use the cust.id (which is unique per placement).
+          // Actually, we want to save the file itself.
+          
+          const uniqueKey = cust.uploadedImageId ? `server-${cust.uploadedImageId}` : `local-${cust.id}`;
+          
+          if (processedImageIds.has(uniqueKey)) continue;
+          processedImageIds.add(uniqueKey);
+
+          let blob: Blob | null = null;
+          let filename = `image-${cust.id}.png`; // Default name
+
+          try {
+            if (cust.file) {
+              // We have the original file
+              blob = cust.file;
+              filename = cust.file.name;
+            } else if (cust.blobUrl) {
+              // We have a blob URL (local preview or fetched)
+              const response = await fetch(cust.blobUrl);
+              blob = await response.blob();
+            } else if (cust.uploadedUrl) {
+              // We have a server URL
+              const response = await fetch(cust.uploadedUrl);
+              blob = await response.blob();
+              // Try to enable clear file naming from URL if possible
+              const urlParts = cust.uploadedUrl.split('/');
+              const lastPart = urlParts[urlParts.length - 1];
+              if (lastPart) filename = lastPart;
+            }
+
+            if (blob && imagesFolder) {
+              // Handle duplicate filenames in ZIP
+              // We can just append a timestamp or counter if needed, but JSZip might overwrite.
+              // Let's ensure uniqueness in filename if needed.
+              // For now, let's prefix with the unique key to be safe.
+              imagesFolder.file(`${uniqueKey}-${filename}`, blob);
+            }
+          } catch (err) {
+            console.error(`Failed to collect image resource ${cust.id}:`, err);
+            // We continue even if one image fails, but warn?
           }
-        });
-      });
+        }
+      }
 
-      imageFiles.forEach(file => {
-        zip.file(`images/${file.name}`, file);
-      });
-
+      toast.loading('Creating zip file...', { id: orderToast });
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       
       // Upload to Supabase Storage with public access
       toast.loading('Uploading order files...', { id: orderToast });
       const fileName = `order-${Date.now()}-${productId}.zip`;
       
-      // Try upload with public bucket policy
+      // Upload to 'orders' bucket
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('orders')
         .upload(fileName, zipBlob, {
@@ -793,43 +928,7 @@ function CustomizeEditor() {
 
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
-        
-        // Fallback: Try uploading to public bucket or use base64
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const result = reader.result as string;
-            const base64Data = result.split(',')[1]; // Remove data:application/zip;base64,
-            resolve(base64Data);
-          };
-          reader.readAsDataURL(zipBlob);
-        });
-        
-        const fileUrl = `data:application/zip;base64,${base64}`;
-        console.log('Using base64 fallback for order file');
-        
-        // Skip storage upload and go directly to order creation
-        const { data: orderData, error: orderError } = await supabase
-          .from('Order')
-          .insert({
-            user_id: session.user.id,
-            product_id: productId ? Number(productId) : null,
-            file_url: fileUrl,
-            status: 'pending_confirmation',
-            total_price: 0
-          })
-          .select()
-          .single();
-
-        if (orderError) {
-          throw new Error(`Order creation failed: ${orderError.message}`);
-        }
-
-        setCurrentOrderId(orderData.id);
-        setIsOrderConfirmationOpen(true);
-        toast.success('Order created! Please confirm PDF.', { id: orderToast });
-        setIsGeneratingPDF(false);
-        return;
+        throw new Error('Failed to upload order ZIP file');
       }
 
       const { data: publicUrlData } = supabase.storage.from('orders').getPublicUrl(fileName);
@@ -844,6 +943,7 @@ function CustomizeEditor() {
         .insert({
           user_id: session.user.id, // UUID from auth session
           file_url: fileUrl,
+          confirmation_pdf_url: confirmationPdfUrl,
           status: 'pending_confirmation',
           total_price: currentProduct?.price || 0 // Use actual product price
         })

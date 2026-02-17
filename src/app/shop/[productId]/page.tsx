@@ -11,6 +11,7 @@ type Product = {
   category: string;
   image: string;
   customizable: boolean;
+  price: number;
 };
 
 type ProductVariant = {

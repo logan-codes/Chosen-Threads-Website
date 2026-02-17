@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Search, Package, DollarSign, Calendar, CheckCircle, Clock, XCircle, Truck, Loader2 } from "lucide-react";
+import { Search, Package, DollarSign, Calendar, CheckCircle, Clock, XCircle, Truck, Loader2, Pencil, X, Check, Download } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ type Order = {
   status: OrderStatus;
   total_price: number;
   created_at: string;
+  file_url?: string;
   product?: {
     name: string;
     image: string;
@@ -40,6 +41,8 @@ export default function AdminOrdersPage() {
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedStatus, setSelectedStatus] = React.useState<string>("all");
+  const [editingPriceId, setEditingPriceId] = React.useState<number | null>(null);
+  const [tempPrice, setTempPrice] = React.useState<string>("");
 
   React.useEffect(() => {
     fetchOrders();
@@ -50,11 +53,7 @@ export default function AdminOrdersPage() {
     const { data, error } = await supabase
       .from("Order")
       .select(`
-        *,
-        product:product_id (
-          name,
-          image
-        )
+        *
       `)
       .order("created_at", { ascending: false });
 
@@ -82,6 +81,39 @@ export default function AdminOrdersPage() {
       toast.error("Failed to update order status");
       console.error(error);
     }
+  };
+
+  const updateOrderPrice = async (orderId: number) => {
+    const newPrice = parseFloat(tempPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast.error("Invalid price");
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("Order")
+        .update({ total_price: newPrice })
+        .eq("id", orderId);
+
+      if (error) throw error;
+      
+      toast.success("Price updated successfully");
+      fetchOrders();
+      setEditingPriceId(null);
+    } catch (error) {
+      toast.error("Failed to update price");
+      console.error(error);
+    }
+  };
+
+  const startEditPrice = (order: Order) => {
+    setEditingPriceId(order.id);
+    setTempPrice(order.total_price?.toString() || "0");
+  };
+
+  const cancelEditPrice = () => {
+    setEditingPriceId(null);
+    setTempPrice("");
   };
 
   const filteredOrders = orders.filter((order) => {
@@ -112,18 +144,6 @@ export default function AdminOrdersPage() {
       case 'cancelled': return <XCircle className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
-  };
-
-  const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
-    const flow: Record<OrderStatus, OrderStatus | null> = {
-      pending_confirmation: 'confirmed',
-      confirmed: 'in_production',
-      in_production: 'shipped',
-      shipped: 'delivered',
-      delivered: null,
-      cancelled: null
-    };
-    return flow[currentStatus];
   };
 
   const statusOptions = [
@@ -198,7 +218,7 @@ export default function AdminOrdersPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${orders.reduce((sum, order) => sum + (order.total_price || 0), 0).toFixed(2)}
+                ₹{orders.reduce((sum, order) => sum + (order.total_price || 0), 0).toFixed(2)}
               </div>
             </CardContent>
           </Card>
@@ -262,13 +282,6 @@ export default function AdminOrdersPage() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden">
-                        <img
-                          src={order.product?.image || "/placeholder-product.jpg"}
-                          alt={order.product?.name || "Product"}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
                       <div>
                         <div className="flex items-center space-x-2 mb-1">
                           <h3 className="font-semibold text-lg">Order #{order.id}</h3>
@@ -279,7 +292,6 @@ export default function AdminOrdersPage() {
                             </div>
                           </Badge>
                         </div>
-                        <p className="text-gray-600">{order.product?.name || "Unknown Product"}</p>
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <div className="flex items-center space-x-1">
                             <Calendar className="w-4 h-4" />
@@ -287,29 +299,64 @@ export default function AdminOrdersPage() {
                           </div>
                           <div className="flex items-center space-x-1">
                             <DollarSign className="w-4 h-4" />
-                            <span className="font-semibold">${order.total_price?.toFixed(2) || '0.00'}</span>
+                            <span className="font-semibold">₹{order.total_price?.toFixed(2) || '0.00'}</span>
                           </div>
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {getNextStatus(order.status) && (
-                        <Button
-                          size="sm"
-                          onClick={() => updateOrderStatus(order.id, getNextStatus(order.status)!)}
+                      <Select value={order.status} onValueChange={(value) => updateOrderStatus(order.id, value as OrderStatus)}>
+                        <SelectTrigger className={`w-40 ${getStatusColor(order.status)} border-0`}>
+                          <div className="flex items-center space-x-1">
+                            {getStatusIcon(order.status)}
+                            <SelectValue />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.filter(o => o.value !== 'all').map(option => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center space-x-1 border rounded-md px-2 py-1 bg-gray-50">
+                        {editingPriceId === order.id ? (
+                          <>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={tempPrice}
+                              onChange={(e) => setTempPrice(e.target.value)}
+                              className="w-20 h-7 text-sm"
+                            />
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => updateOrderPrice(order.id)}>
+                              <Check className="w-4 h-4 text-green-600" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={cancelEditPrice}>
+                              <X className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <DollarSign className="w-3 h-3" />
+                            <span className="text-sm font-medium">{order.total_price?.toFixed(2) || '0.00'}</span>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEditPrice(order)}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                      {order.file_url && (
+                        <a
+                          href={order.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-md border bg-white hover:bg-gray-50"
+                          title="Download ZIP"
                         >
-                          Mark as {STATUS_LABELS[getNextStatus(order.status)!]}
-                        </Button>
-                      )}
-                      {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                          className="text-red-500 hover:text-red-600"
-                        >
-                          Cancel
-                        </Button>
+                          <Download className="w-4 h-4" />
+                        </a>
                       )}
                     </div>
                   </div>

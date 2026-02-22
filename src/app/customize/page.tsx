@@ -1348,7 +1348,7 @@ function CustomizeEditor() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         <Header
-          onOrder={handleOrder}
+          onOrder={() => setSelectedNavItem('order')}
           onTutorial={() => setIsTutorialOpen(true)}
           onUndo={handleUndo}
           onRedo={handleRedo}
@@ -1466,6 +1466,8 @@ function CustomizeEditor() {
         renderShirtSVG={renderShirtSVG}
         selectedColor={selectedColor}
         viewCustomizations={viewCustomizations}
+        productVariants={productVariants}
+        currentProduct={currentProduct}
       />
 
       <Dialog open={isOrderConfirmationOpen} onOpenChange={setIsOrderConfirmationOpen}>

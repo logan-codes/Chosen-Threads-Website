@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Eye, RotateCcw } from 'lucide-react';
+import { SecureSVGRenderer } from '@/lib/svgSecurity';
 
 interface RightSidebarProps {
   productViews: ('FRONT' | 'BACK' | 'RIGHT' | 'LEFT')[];
@@ -9,6 +10,8 @@ interface RightSidebarProps {
   renderShirtSVG: (view: 'FRONT' | 'BACK' | 'RIGHT' | 'LEFT', color: string) => string;
   selectedColor: string;
   viewCustomizations?: Record<string, any[]>;
+  productVariants?: any[];
+  currentProduct?: any;
 }
 
 const VIEW_DESCRIPTIONS: Record<string, string> = {
@@ -24,8 +27,29 @@ export function RightSidebar({
   onSelectView, 
   renderShirtSVG, 
   selectedColor,
-  viewCustomizations = {}
+  viewCustomizations = {},
+  productVariants = [],
+  currentProduct
 }: RightSidebarProps) {
+  
+  const getViewImageUrl = (view: string) => {
+    // First try to find a variant image for this view and color
+    const variant = productVariants.find(
+      v => v.view === view && v.color.toLowerCase() === selectedColor.toLowerCase()
+    );
+    
+    if (variant?.image_url) {
+      return SecureSVGRenderer.validateImageURL(variant.image_url);
+    }
+    
+    // Fallback to product default image if it's the front view (usually)
+    if (view === 'FRONT' && currentProduct?.image) {
+      return SecureSVGRenderer.validateImageURL(currentProduct.image);
+    }
+    
+    return null;
+  };
+
   return (
     <aside className="w-64 bg-white border-l border-[#e8e5e0] flex flex-col">
       {/* Header */}
@@ -44,6 +68,7 @@ export function RightSidebar({
         {productViews.map((view) => {
           const isSelected = selectedView === view;
           const customizationCount = viewCustomizations[view]?.length || 0;
+          const imageUrl = getViewImageUrl(view);
           
           return (
             <button
@@ -66,12 +91,25 @@ export function RightSidebar({
                       : "border-gray-200 group-hover:border-gray-300"
                   )}
                 >
-                  <div
-                    className="relative w-3/4 h-3/4"
-                    dangerouslySetInnerHTML={{
-                      __html: renderShirtSVG(view, selectedColor),
-                    }}
-                  />
+                  {imageUrl ? (
+                    <img 
+                      src={imageUrl} 
+                      alt={view}
+                      className="w-full h-full object-contain p-2"
+                      onError={(e) => {
+                        // If image fails, the CSS background or something could handle it, 
+                        // but here we just let it be or it could trigger a state change if needed.
+                        console.warn(`Failed to load sidebar image for ${view}`);
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="relative w-3/4 h-3/4"
+                      dangerouslySetInnerHTML={{
+                        __html: renderShirtSVG(view, selectedColor),
+                      }}
+                    />
+                  )}
                   
                   {/* Customization Indicator */}
                   {customizationCount > 0 && (

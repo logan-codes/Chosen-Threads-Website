@@ -37,7 +37,7 @@ const Tutorial: React.FC<TutorialProps> = ({ isOpen, setIsOpen }) => {
           </div>
           <div className="flex items-start gap-4">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-white font-bold">3</div>
-            <p><strong>Adjust Your Design:</strong> Click on your uploaded image to move, resize, or rotate it. Use the controls on the right for fine-tuning.</p>
+            <p><strong>Adjust Your Design:</strong> Click on your uploaded image to move, resize, or rotate it. Use the controls in the left sidebar for fine-tuning.</p>
           </div>
           <div className="flex items-start gap-4">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-white font-bold">4</div>
@@ -45,7 +45,7 @@ const Tutorial: React.FC<TutorialProps> = ({ isOpen, setIsOpen }) => {
           </div>
           <div className="flex items-start gap-4">
             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-800 text-white font-bold">5</div>
-            <p><strong>Place Your Order:</strong> Happy with your creation? Click the 'Order' button to proceed to checkout.</p>
+            <p><strong>Place Your Order:</strong> Happy with your creation? Click the 'Order' button to review your summary and proceed to checkout.</p>
           </div>
         </div>
         <DialogFooter>

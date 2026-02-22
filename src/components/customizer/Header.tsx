@@ -1,5 +1,4 @@
-import { Button } from '@/components/ui/button';
-import { Undo2, Redo2, ImageIcon } from 'lucide-react';
+import { Undo2, Redo2, ShoppingCart, HelpCircle } from 'lucide-react';
 
 interface HeaderProps {
   onOrder: () => void;
@@ -12,8 +11,10 @@ interface HeaderProps {
 
 export function Header({ onOrder, onTutorial, onUndo, onRedo, canUndo, canRedo }: HeaderProps) {
   const actionButtons = [
-    { id: 'undo', label: 'Undo', icon: Undo2 },
-    { id: 'redo', label: 'Redo', icon: Redo2 },
+    { id: 'undo', label: 'Undo', icon: Undo2, onClick: onUndo },
+    { id: 'redo', label: 'Redo', icon: Redo2, onClick: onRedo },
+    { id: 'tutorial', label: 'Tutorial', icon: HelpCircle, onClick: onTutorial },
+    { id: 'order', label: 'Order', icon: ShoppingCart, onClick: onOrder },
   ];
 
   return (
@@ -28,7 +29,7 @@ export function Header({ onOrder, onTutorial, onUndo, onRedo, canUndo, canRedo }
           return (
             <button
               key={btn.id}
-              onClick={isUndo ? onUndo : onRedo}
+              onClick={btn.onClick}
               disabled={isDisabled}
               className="flex flex-col items-center gap-1 hover:opacity-70 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -41,21 +42,6 @@ export function Header({ onOrder, onTutorial, onUndo, onRedo, canUndo, canRedo }
             </button>
           );
         })}
-      </div>
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          onClick={onTutorial}
-          className="border-primary/20 text-primary hover:bg-primary hover:text-white rounded-lg px-6 py-2 text-sm font-semibold"
-        >
-          Tutorials
-        </Button>
-        <Button
-          onClick={onOrder}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-6 py-2 text-sm font-semibold disabled:opacity-50"
-        >
-          Order
-        </Button>
       </div>
     </header>
   );
